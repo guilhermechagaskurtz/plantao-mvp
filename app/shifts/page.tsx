@@ -5,6 +5,11 @@ app/shifts/page.tsx
 
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
+
+const Map = dynamic(() => import('@/components/Map'), {
+  ssr: false
+})
 
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371
@@ -25,8 +30,21 @@ export default function ShiftsPage() {
   const [shifts, setShifts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [doctor, setDoctor] = useState<any>(null)
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
+  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!error && !success) return
+
+    const timer = setTimeout(() => {
+      setError('')
+      setSuccess('')
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [error, success])
 
   const loadShifts = async () => {
     setLoading(true)
@@ -140,6 +158,9 @@ export default function ShiftsPage() {
   }, [])
 
   const acceptShift = async (shift: any) => {
+    const confirmed = window.confirm('Deseja aceitar este plantão?')
+
+    if (!confirmed) return
     setAcceptingId(shift.id)
 
     const { data } = await supabase.auth.getUser()
@@ -186,6 +207,7 @@ export default function ShiftsPage() {
     }
 
     setShifts(prev => prev.filter(s => s.id !== shift.id))
+    setSuccess('Plantão aceito com sucesso')
     setAcceptingId(null)
   }
 
@@ -224,6 +246,11 @@ export default function ShiftsPage() {
           {error}
         </div>
       )}
+      {success && (
+        <div className='bg-green-100 text-green-700 p-2 rounded'>
+          {success}
+        </div>
+      )}
 
       {loading && (
         <div className='text-gray-500'>Carregando plantões...</div>
@@ -237,6 +264,63 @@ export default function ShiftsPage() {
       {!loading && shifts.length === 0 && (
         <div className='text-gray-500'>Nenhum plantão disponível</div>
       )}
+      {!loading && shifts.length > 0 && (
+        <div className="flex gap-4">
+
+          {/* MAPA */}
+          <div className="w-1/2 sticky top-4 h-[600px]">
+            <Map
+              shifts={shifts}
+              selectedShiftId={selectedShiftId}
+              onSelect={setSelectedShiftId}
+            />
+          </div>
+
+          {/* LISTA */}
+          <div className="w-1/2 flex flex-col gap-2 max-h-[600px] overflow-y-auto">
+            {shifts.map(shift => (
+              <div
+                key={shift.id}
+                onClick={() => setSelectedShiftId(shift.id)}
+                className={`p-4 bg-white text-black rounded cursor-pointer transition border-2 ${selectedShiftId === shift.id
+                  ? 'border-blue-700 bg-blue-100 shadow-lg'
+                  : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'
+                  }`}
+              >
+                <p><b>Especialidade:</b> {shift.specialty}</p>
+                <p>
+                  <b>Início:</b>{' '}
+                  {new Date(shift.start_time).toLocaleString()}
+                </p>
+                <p>
+                  <b>Fim:</b>{' '}
+                  {new Date(shift.end_time).toLocaleString()}
+                </p>
+                <p>
+                  <b>Distância:</b>{' '}
+                  {Math.round(
+                    getDistanceKm(
+                      doctor?.latitude,
+                      doctor?.longitude,
+                      shift.latitude,
+                      shift.longitude
+                    )
+                  )} km
+                </p>
+
+                <button
+                  onClick={() => acceptShift(shift)}
+                  className='mt-2 p-2 bg-green-600 text-white rounded'
+                >
+                  Aceitar
+                </button>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      )}
+      {/* 
       {!loading && doctor && shifts.map(shift => (
         <div key={shift.id} className='border p-4 bg-white text-black rounded'>
           <p><b>Especialidade:</b> {shift.specialty}</p>
@@ -276,6 +360,7 @@ export default function ShiftsPage() {
           )}
         </div>
       ))}
+        */}
     </div>
   )
 }
