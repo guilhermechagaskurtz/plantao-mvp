@@ -1,3 +1,6 @@
+/*
+app/clinic/shifts/page.tsx
+*/
 'use client'
 
 import { supabase } from '@/lib/supabase'
@@ -77,7 +80,14 @@ export default function CreateShift() {
   const loadShifts = async (clinicId: string) => {
     const { data, error } = await supabase
       .from('shifts')
-      .select('*')
+      .select(`
+    *,
+    doctors:accepted_doctor_id (
+      id,
+      name,
+      crm
+    )
+  `)
       .eq('clinic_id', clinicId)
       .order('start_time', { ascending: false })
 
@@ -206,7 +216,7 @@ export default function CreateShift() {
   }
 
   return (
-    <div ref={formRef} className='p-10 flex flex-col gap-2'>
+    <div ref={formRef} className='flex flex-col gap-X'>
       {error && (
         <div className='bg-red-100 text-red-700 p-2 rounded'>
           {error}
@@ -288,10 +298,10 @@ export default function CreateShift() {
                 {shift.status}
               </span>
             </p>
-            {shift.status === 'accepted' && shift.accepted_doctor && (
+            {shift.status === 'accepted' && shift.doctors && (
               <div className='mt-2 p-2 bg-green-50 rounded'>
-                <p><b>Médico:</b> {shift.accepted_doctor.name}</p>
-                <p><b>CRM:</b> {shift.accepted_doctor.crm}</p>
+                <p><b>Médico:</b> {shift.doctors.name}</p>
+                <p><b>CRM:</b> {shift.doctors.crm}</p>
               </div>
             )}
             {shift.status === 'open' && (

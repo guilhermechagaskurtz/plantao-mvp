@@ -1,3 +1,6 @@
+/*
+components/Header.tsx
+*/
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -39,6 +42,8 @@ export default function Header() {
         {type === 'doctor' && (
           <>
             <a href='/shifts'>Plantões</a>
+            <a href='/my-shifts'>Meus plantões</a>
+            <a href='/history'>Histórico</a>
             <a href='/doctor'>Perfil</a>
           </>
         )}
@@ -46,6 +51,7 @@ export default function Header() {
         {type === 'clinic' && (
           <>
             <a href='/clinic/shifts'>Plantões</a>
+            <a href='/clinic/financial'>Financeiro</a>
           </>
         )}
 

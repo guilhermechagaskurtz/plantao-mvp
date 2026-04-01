@@ -1,3 +1,6 @@
+/*
+app/login/page.tsx
+*/
 'use client'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -8,7 +11,7 @@ export default function Login() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [type, setType] = useState<'doctor' | 'clinic'>('doctor')
+  const [type, setType] = useState<'doctor'>('doctor')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -27,7 +30,7 @@ export default function Login() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('type')
+        .select('type, approval_status')
         .eq('id', user.id)
         .single()
 
@@ -37,9 +40,17 @@ export default function Login() {
       }
 
       if (profile.type === 'doctor') {
+        if (profile.approval_status !== 'approved') {
+          await supabase.auth.signOut()
+          setCheckingSession(false)
+          return
+        }
+
         router.replace('/shifts')
-      } else {
+      } else if (profile.type === 'clinic') {
         router.replace('/clinic/shifts')
+      } else if (profile.type === 'admin') {
+        router.replace('/admin')
       }
     }
 
@@ -71,7 +82,8 @@ export default function Login() {
 
     const { error: profileError } = await supabase.from('profiles').insert({
       id: user.id,
-      type
+      type: 'doctor',
+      approval_status: 'pending'
     })
 
     if (profileError) {
@@ -122,9 +134,24 @@ export default function Login() {
     }
 
     if (profile.type === 'doctor') {
+      if (profile.approval_status !== 'approved') {
+        await supabase.auth.signOut()
+
+        if (profile.approval_status === 'rejected') {
+          setError('Seu cadastro foi reprovado')
+        } else {
+          setError('Seu cadastro está aguardando aprovação')
+        }
+
+        setLoading(false)
+        return
+      }
+
       router.push('/shifts')
-    } else {
+    } else if (profile.type === 'clinic') {
       router.push('/clinic/shifts')
+    } else if (profile.type === 'admin') {
+      router.push('/admin')
     }
 
     setLoading(false)
@@ -135,7 +162,7 @@ export default function Login() {
   }
 
   return (
-    <div className='p-10 flex flex-col gap-2'>
+    <div className='flex flex-col gap-X'>
       {error && (
         <div className='bg-red-100 text-red-700 p-2 rounded'>
           {error}
@@ -150,15 +177,7 @@ export default function Login() {
       <input placeholder='email' onChange={e => setEmail(e.target.value)} />
       <input placeholder='senha' type='password' onChange={e => setPassword(e.target.value)} />
 
-      {mode === 'register' && (
-        <select
-          onChange={e => setType(e.target.value as any)}
-          className='p-2 border rounded'
-        >
-          <option value='doctor'>Médico</option>
-          <option value='clinic'>Clínica</option>
-        </select>
-      )}
+      {mode === 'register' && null}
 
       {mode === 'login' ? (
         <>

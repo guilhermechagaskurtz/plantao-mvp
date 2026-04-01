@@ -1,3 +1,6 @@
+/*
+app/layout.tsx
+*/
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -30,7 +33,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Header />
-        <div className="flex-1">{children}</div>
+        <div className="flex-1 bg-gray-50">
+          <div className="max-w-4xl mx-auto w-full px-4 py-6">
+            {children}
+          </div>
+        </div>
       </body>
     </html>
   );
