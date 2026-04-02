@@ -3,6 +3,11 @@
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import Card from '@/components/ui/Card'
+import Section from '@/components/ui/Section'
+import { Table, THead, TH, TR, TD } from '@/components/ui/Table'
 import { useSearchParams } from 'next/navigation'
 
 export default function AdminClinicsPage() {
@@ -149,138 +154,137 @@ export default function AdminClinicsPage() {
                 </div>
             )}
 
-            <div className='flex justify-between items-center mt-4'>
-                <h1 className='text-2xl font-bold'>Clínicas</h1>
-
-                <Link
-                    href='/admin/clinics/create'
-                    className='px-4 py-2 bg-blue-600 text-white rounded'
-                >
-                    Nova clínica
-                </Link>
-            </div>
+            <Section
+                title='Clínicas'
+                action={
+                    <Link href='/admin/clinics/create'>
+                        <Button>Nova clínica</Button>
+                    </Link>
+                }
+            >
+                <></>
+            </Section>
 
             {clinics.length === 0 && (
                 <div className='text-gray-500'>Nenhuma clínica</div>
             )}
 
-            <div className='border rounded-lg bg-white shadow-sm overflow-hidden'>
+            <Card className='p-0 overflow-hidden'>
                 <div className='max-h-[600px] overflow-y-auto'>
-                    <input
-                        placeholder='Buscar clínica por nome'
-                        value={searchInput}
-                        onChange={e => setSearchInput(e.target.value)}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter') {
+                    <div className='flex gap-2 items-center mb-3'>
+                        <Input
+                            value={searchInput}
+                            onChange={setSearchInput}
+                            placeholder='Buscar clínica por nome'
+                            className='max-w-sm'
+                        />
+
+                        <Button
+                            onClick={() => {
                                 setPage(0)
                                 setSearch(searchInput)
-                            }
-                        }}
-                        className='border p-2 rounded max-w-md'
-                    />
-                    <button
-                        onClick={() => {
-                            setPage(0)
-                            setSearch(searchInput)
-                        }}
-                        className='px-3 py-2 bg-blue-600 text-white rounded'
-                    >
-                        Buscar
-                    </button>
+                            }}
+                        >
+                            Buscar
+                        </Button>
+                    </div>
                     {loading && (
                         <div className='text-xs text-gray-400'>Atualizando...</div>
                     )}
-                    <table className='w-full text-sm'>
-                        <thead className='bg-gray-100'>
+                    <Table>
+                        <THead>
                             <tr>
-                                <th className='text-left p-2'>Nome</th>
-                                <th className='text-left p-2'>ID</th>
-                                <th className='text-left p-2'>Ações</th>
+                                <TH>Nome</TH>
+                                <TH>ID</TH>
+                                <TH>Ações</TH>
                             </tr>
-                        </thead>
+                        </THead>
 
                         <tbody>
                             {clinics.map(c => (
-                                <tr key={c.id} className='border-t'>
-                                    <td className='p-2'>
+                                <TR key={c.id}>
+                                    <TD>
                                         {editingClinicId === c.id ? (
-                                            <input
+                                            <Input
                                                 value={editingName}
-                                                onChange={e => setEditingName(e.target.value)}
-                                                className='border p-1 rounded w-full'
+                                                onChange={setEditingName}
                                             />
                                         ) : (
                                             c.name
                                         )}
-                                    </td>
+                                    </TD>
 
-                                    <td className='p-2 text-xs text-gray-500'>
-                                        {c.id}
-                                    </td>
+                                    <TD>
+                                        <span className='text-xs text-gray-400'>
+                                            {c.id}
+                                        </span>
+                                    </TD>
 
-                                    <td className='p-2 flex gap-2'>
-                                        {editingClinicId === c.id ? (
-                                            <>
-                                                <button
-                                                    onClick={() => saveClinic(c.id)}
-                                                    className='px-2 py-1 bg-green-600 text-white rounded text-xs'
-                                                >
-                                                    Salvar
-                                                </button>
+                                    <TD>
+                                        <div className='flex gap-2'>
+                                            {editingClinicId === c.id ? (
+                                                <>
+                                                    <Button
+                                                        variant='primary'
+                                                        onClick={() => saveClinic(c.id)}
+                                                    >
+                                                        Salvar
+                                                    </Button>
 
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingClinicId(null)
-                                                        setEditingName('')
-                                                    }}
-                                                    className='px-2 py-1 bg-gray-400 text-white rounded text-xs'
-                                                >
-                                                    Cancelar
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    onClick={() => {
-                                                        window.location.href = `/admin/clinics/${c.id}`
-                                                    }}
-                                                    className='px-2 py-1 bg-yellow-500 text-white rounded text-xs'
-                                                >
-                                                    Editar
-                                                </button>
+                                                    <Button
+                                                        variant='secondary'
+                                                        onClick={() => {
+                                                            setEditingClinicId(null)
+                                                            setEditingName('')
+                                                        }}
+                                                    >
+                                                        Cancelar
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Button
+                                                        variant='secondary'
+                                                        onClick={() => {
+                                                            window.location.href = `/admin/clinics/${c.id}`
+                                                        }}
+                                                    >
+                                                        Editar
+                                                    </Button>
 
-                                                <button
-                                                    onClick={() => deleteClinic(c.id)}
-                                                    className='px-2 py-1 bg-red-600 text-white rounded text-xs'
-                                                >
-                                                    Excluir
-                                                </button>
-                                            </>
-                                        )}
-                                    </td>
-                                </tr>
+                                                    <Button
+                                                        variant='danger'
+                                                        onClick={() => deleteClinic(c.id)}
+                                                    >
+                                                        Excluir
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </TD>
+                                </TR>
                             ))}
                         </tbody>
-                    </table>
-                    <div className='flex justify-between mt-4'>
-                        <button
+                    </Table>
+                    <div className='flex justify-between mt-4 px-2'>
+                        <Button
+                            variant='secondary'
                             disabled={page === 0}
                             onClick={() => setPage(p => Math.max(p - 1, 0))}
-                            className='px-3 py-1 border rounded disabled:opacity-50'
                         >
                             Anterior
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
+                            variant='secondary'
                             disabled={(page + 1) * PAGE_SIZE >= total}
                             onClick={() => setPage(p => p + 1)}
-                            className='px-3 py-1 border rounded disabled:opacity-50'
                         >
                             Próxima
-                        </button>
+                        </Button>
                     </div>
                 </div>
-            </div>
+            </Card>
         </div>
     )
 }

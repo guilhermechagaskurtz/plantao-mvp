@@ -108,6 +108,7 @@ export default function CreateClinicPage() {
             return
         }
 
+        await supabase.auth.resetPasswordForEmail(form.email)
         router.push('/admin/clinics?saved=1')
     }
 

@@ -7,6 +7,10 @@ import { supabase } from '@/lib/supabase'
 import { useState } from 'react'
 import { useEffect } from 'react'
 import { useRef } from 'react'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import Section from '@/components/ui/Section'
 
 const specialties = [
   'Clínico Geral',
@@ -131,6 +135,13 @@ export default function CreateShift() {
   }
 
   const handleCreate = async () => {
+    const confirmed = window.confirm(
+      editingId
+        ? 'Deseja salvar as alterações deste plantão?'
+        : 'Deseja criar este plantão?'
+    )
+
+    if (!confirmed) return
     setError('')
     setSuccess('')
 
@@ -232,52 +243,63 @@ export default function CreateShift() {
       {loading && (
         <div className='text-gray-500'>Carregando...</div>
       )}
-      <select
-        value={specialty}
-        onChange={e => setSpecialty(e.target.value)}
-        className='p-2 bg-blue-600 text-white rounded'
-      >
-        <option value=''>Selecione a especialidade</option>
+      <Card>
+        <div className='mb-4'>
+          <h2 className='text-lg font-semibold text-gray-900'>
+            {editingId ? 'Editar plantão' : 'Criar novo plantão'}
+          </h2>
+          <p className='text-sm text-gray-500'>
+            Preencha os dados do plantão abaixo
+          </p>
+        </div>
+        <div className='flex flex-col gap-3'>
+          <select
+            value={specialty}
+            onChange={e => setSpecialty(e.target.value)}
+            className='p-2 bg-blue-600 text-white rounded'
+          >
+            <option value=''>Selecione a especialidade</option>
 
-        {specialties.map(s => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
+            {specialties.map(s => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
 
-      <input
-        placeholder='Valor'
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        className='border p-2 rounded bg-white text-black'
-      />
+          <Input
+            value={value}
+            onChange={setValue}
+            placeholder='Valor'
+          />
 
-      <input
-        type="datetime-local"
-        value={start}
-        onChange={e => setStart(e.target.value)}
-        className="border p-2 rounded bg-white text-black"
-      />
+          <Input
+            type='datetime-local'
+            value={start}
+            onChange={setStart}
+          />
 
-      <input
-        type="datetime-local"
-        value={end}
-        onChange={e => setEnd(e.target.value)}
-        className="border p-2 rounded bg-white text-black"
-      />
+          <Input
+            type='datetime-local'
+            value={end}
+            onChange={setEnd}
+          />
 
-      <button
-        onClick={handleCreate}
-        disabled={submitting || loading}
-        className='p-2 bg-purple-600 text-white rounded disabled:opacity-50'
-      >
-        {submitting
-          ? editingId ? 'Salvando...' : 'Criando...'
-          : editingId ? 'Salvar alterações' : 'Criar plantão'}
-      </button>
-      <div className='mt-6'>
-        <h2 className='font-bold text-lg mb-2'>Seus plantões</h2>
+          <Button
+            onClick={handleCreate}
+            disabled={submitting || loading}
+          >
+            {submitting
+              ? editingId ? 'Salvando...' : 'Criando...'
+              : editingId ? 'Salvar alterações' : 'Criar plantão'}
+          </Button>
+        </div>
+
+      </Card>
+      <Card className='mt-6'>
+        <div className='flex justify-between items-center mb-3'>
+          <h2 className='text-lg font-semibold'>Seus plantões</h2>
+        </div>
 
         {!loading && shifts.length === 0 && (
           <div className='text-gray-500'>Nenhum plantão criado</div>
@@ -287,44 +309,57 @@ export default function CreateShift() {
         )}
 
         {shifts.map(shift => (
-          <div key={shift.id} className='border p-3 mb-2 rounded bg-white text-black'>
-            <p><b>Especialidade:</b> {shift.specialty}</p>
-            <p><b>Valor:</b> R$ {shift.value}</p>
-            <p><b>Início:</b> {new Date(shift.start_time).toLocaleString()}</p>
-            <p><b>Fim:</b> {new Date(shift.end_time).toLocaleString()}</p>
-            <p>
-              <b>Status:</b>{' '}
-              <span className={shift.status === 'open' ? 'text-yellow-600' : 'text-green-600'}>
+          <div
+            key={shift.id}
+            className='border border-gray-200 p-4 rounded-lg bg-white hover:shadow-sm transition flex flex-col gap-2'
+          >
+            <div className='flex justify-between items-center'>
+              <div className='font-semibold text-gray-900'>
+                {shift.specialty}
+              </div>
+
+              <span className={`text-xs font-medium px-2 py-1 rounded 
+      ${shift.status === 'open'
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-green-100 text-green-700'}
+    `}>
                 {shift.status}
               </span>
-            </p>
+            </div>
+
+            <div className='text-sm text-gray-600'>
+              <div><b>Valor:</b> R$ {shift.value}</div>
+              <div><b>Início:</b> {new Date(shift.start_time).toLocaleString()}</div>
+              <div><b>Fim:</b> {new Date(shift.end_time).toLocaleString()}</div>
+            </div>
+
             {shift.status === 'accepted' && shift.doctors && (
-              <div className='mt-2 p-2 bg-green-50 rounded'>
-                <p><b>Médico:</b> {shift.doctors.name}</p>
-                <p><b>CRM:</b> {shift.doctors.crm}</p>
+              <div className='text-sm bg-gray-50 p-2 rounded'>
+                <b>Médico:</b> {shift.doctors.name} ({shift.doctors.crm})
               </div>
             )}
+
             {shift.status === 'open' && (
               <div className='flex gap-2 mt-2'>
-                <button
+                <Button
+                  variant='secondary'
                   onClick={() => startEdit(shift)}
-                  className='p-2 bg-blue-600 text-white rounded'
                 >
                   Editar
-                </button>
+                </Button>
 
-                <button
+                <Button
+                  variant='danger'
                   onClick={() => deleteShift(shift.id)}
-                  className='p-2 bg-red-600 text-white rounded'
                 >
                   Excluir
-                </button>
+                </Button>
               </div>
             )}
           </div>
 
         ))}
-      </div>
-    </div>
+      </Card>
+    </div >
   )
 }

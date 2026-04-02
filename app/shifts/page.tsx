@@ -6,6 +6,9 @@ app/shifts/page.tsx
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
 
 const Map = dynamic(() => import('@/components/Map'), {
   ssr: false
@@ -257,18 +260,21 @@ export default function ShiftsPage() {
       )}
 
       {!doctor?.specialty && (
-        <div className='bg-yellow-100 text-yellow-800 p-2 rounded'>
-          Você ainda não definiu sua especialidade. Mostrando todos os plantões.
+        <div className='border border-yellow-300 bg-yellow-50 text-yellow-800 px-4 py-3 rounded-lg flex items-center gap-2'>
+          <span className='font-medium'>Atenção:</span>
+          <span className='text-sm'>
+            Você ainda não definiu sua especialidade. Mostrando todos os plantões.
+          </span>
         </div>
       )}
       {!loading && shifts.length === 0 && (
         <div className='text-gray-500'>Nenhum plantão disponível</div>
       )}
       {!loading && shifts.length > 0 && (
-        <div className="flex gap-4">
+        <div className="flex flex-col lg:flex-row gap-6">
 
           {/* MAPA */}
-          <div className="w-1/2 sticky top-4 h-[600px]">
+          <div className="w-full lg:w-2/5 sticky top-4 h-fit">
             <Map
               shifts={shifts}
               selectedShiftId={selectedShiftId}
@@ -277,43 +283,52 @@ export default function ShiftsPage() {
           </div>
 
           {/* LISTA */}
-          <div className="w-1/2 flex flex-col gap-2 max-h-[600px] overflow-y-auto">
+          <div className="w-full lg:w-3/5 flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
             {shifts.map(shift => (
               <div
                 key={shift.id}
                 onClick={() => setSelectedShiftId(shift.id)}
-                className={`p-4 bg-white text-black rounded cursor-pointer transition border-2 ${selectedShiftId === shift.id
-                  ? 'border-blue-700 bg-blue-100 shadow-lg'
-                  : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'
+                className={`p-4 bg-white rounded-lg cursor-pointer transition border 
+  ${selectedShiftId === shift.id
+                    ? 'border-blue-600 shadow-md'
+                    : 'border-gray-200 hover:border-gray-400 hover:shadow-sm'
                   }`}
               >
-                <p><b>Especialidade:</b> {shift.specialty}</p>
-                <p>
-                  <b>Início:</b>{' '}
-                  {new Date(shift.start_time).toLocaleString()}
-                </p>
-                <p>
-                  <b>Fim:</b>{' '}
-                  {new Date(shift.end_time).toLocaleString()}
-                </p>
-                <p>
-                  <b>Distância:</b>{' '}
-                  {Math.round(
-                    getDistanceKm(
-                      doctor?.latitude,
-                      doctor?.longitude,
-                      shift.latitude,
-                      shift.longitude
-                    )
-                  )} km
-                </p>
+                <div className='flex justify-between items-center mb-2'>
+                  <div className='font-semibold text-gray-900'>
+                    {shift.specialty}
+                  </div>
 
-                <button
-                  onClick={() => acceptShift(shift)}
-                  className='mt-2 p-2 bg-green-600 text-white rounded'
-                >
-                  Aceitar
-                </button>
+                  <span className='text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-700'>
+                    Disponível
+                  </span>
+                </div>
+
+                <div className='text-sm text-gray-600'>
+                  <div><b>Início:</b> {new Date(shift.start_time).toLocaleString()}</div>
+                  <div><b>Fim:</b> {new Date(shift.end_time).toLocaleString()}</div>
+                  <div><b>Distância:</b> {
+                    Math.round(
+                      getDistanceKm(
+                        doctor?.latitude,
+                        doctor?.longitude,
+                        shift.latitude,
+                        shift.longitude
+                      )
+                    )
+                  } km</div>
+                </div>
+
+                <div className='mt-3'>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      acceptShift(shift)
+                    }}
+                  >
+                    Aceitar
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

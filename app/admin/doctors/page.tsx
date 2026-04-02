@@ -2,6 +2,9 @@
 
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
 
 export default function AdminDoctorsPage() {
     const [loading, setLoading] = useState(true)
@@ -104,42 +107,57 @@ export default function AdminDoctorsPage() {
 
             <h1 className='text-2xl font-bold'>Médicos</h1>
 
-            <div className='flex gap-2'>
-                <button
-                    onClick={() => setStatusFilter('all')}
-                    className={`px-3 py-1 border rounded ${statusFilter === 'all' ? 'bg-black text-white' : ''}`}
-                >
-                    Todos
-                </button>
+            <Card>
+                <div className='flex flex-col gap-4'>
 
-                <button
-                    onClick={() => setStatusFilter('pending')}
-                    className={`px-3 py-1 border rounded ${statusFilter === 'pending' ? 'bg-black text-white' : ''}`}
-                >
-                    Pending
-                </button>
+                    <div className='text-lg font-semibold text-gray-900'>
+                        Filtros
+                    </div>
 
-                <button
-                    onClick={() => setStatusFilter('approved')}
-                    className={`px-3 py-1 border rounded ${statusFilter === 'approved' ? 'bg-black text-white' : ''}`}
-                >
-                    Approved
-                </button>
+                    <div className='flex flex-col lg:flex-row gap-3'>
 
-                <button
-                    onClick={() => setStatusFilter('rejected')}
-                    className={`px-3 py-1 border rounded ${statusFilter === 'rejected' ? 'bg-black text-white' : ''}`}
-                >
-                    Rejected
-                </button>
+                        <div className='flex gap-2 flex-wrap'>
+                            <Button
+                                variant={statusFilter === 'all' ? 'primary' : 'secondary'}
+                                onClick={() => setStatusFilter('all')}
+                            >
+                                Todos
+                            </Button>
 
-                <input
-                    placeholder='Buscar por nome'
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className='border p-2 rounded max-w-md'
-                />
-            </div>
+                            <Button
+                                variant={statusFilter === 'pending' ? 'primary' : 'secondary'}
+                                onClick={() => setStatusFilter('pending')}
+                            >
+                                Pendentes
+                            </Button>
+
+                            <Button
+                                variant={statusFilter === 'approved' ? 'primary' : 'secondary'}
+                                onClick={() => setStatusFilter('approved')}
+                            >
+                                Aprovados
+                            </Button>
+
+                            <Button
+                                variant={statusFilter === 'rejected' ? 'primary' : 'secondary'}
+                                onClick={() => setStatusFilter('rejected')}
+                            >
+                                Reprovados
+                            </Button>
+                        </div>
+
+                        <div className='w-full lg:w-64'>
+                            <Input
+                                value={search}
+                                onChange={setSearch}
+                                placeholder='Buscar por nome'
+                            />
+                        </div>
+
+                    </div>
+
+                </div>
+            </Card>
 
             {doctors.length === 0 && (
                 <div className='text-gray-500'>Nenhum médico</div>
@@ -174,49 +192,57 @@ export default function AdminDoctorsPage() {
                         {filtered.map(d => (
                             <div
                                 key={d.id}
-                                className={`border p-4 rounded-lg shadow-sm ${d.approval_status === 'pending'
-                                        ? 'bg-yellow-50 border-yellow-300'
-                                        : d.approval_status === 'approved'
-                                            ? 'bg-green-50 border-green-300'
-                                            : 'bg-red-50 border-red-300'
-                                    }`}
+                                className='border border-gray-200 p-4 rounded-lg bg-white flex flex-col gap-3 hover:shadow-sm transition'
                             >
-                                <p><b>Nome:</b> {d.doctors?.name || '-'}</p>
-                                <p><b>CRM:</b> {d.doctors?.crm || '-'}</p>
-                                <p><b>Especialidade:</b> {d.doctors?.specialty || '-'}</p>
-                                <p><b>Telefone:</b> {d.doctors?.phone || '-'}</p>
-                                <p><b>Documento:</b> {d.doctors?.document || '-'}</p>
-                                <p><b>Bio:</b> {d.doctors?.bio || '-'}</p>
-
-                                <div className='flex items-center justify-between'>
-                                    <p>
-                                        <b>Status:</b>{' '}
-                                        <span className='capitalize font-semibold'>
-                                            {d.approval_status === 'pending'
-                                                ? 'Pendente'
-                                                : d.approval_status === 'approved'
-                                                    ? 'Aprovado'
-                                                    : 'Reprovado'}
-                                        </span>
-                                    </p>
-
-                                    <div className='flex gap-2'>
-                                        <button
-                                            onClick={() => updateStatus(d.id, 'approved')}
-                                            disabled={d.approval_status === 'approved'}
-                                            className='px-3 py-1 bg-green-600 text-white rounded disabled:opacity-40'
-                                        >
-                                            Aprovar
-                                        </button>
-
-                                        <button
-                                            onClick={() => updateStatus(d.id, 'rejected')}
-                                            disabled={d.approval_status === 'rejected'}
-                                            className='px-3 py-1 bg-red-600 text-white rounded disabled:opacity-40'
-                                        >
-                                            Reprovar
-                                        </button>
+                                <div className='flex justify-between items-center'>
+                                    <div className='font-semibold text-gray-900'>
+                                        {d.doctors?.name || '-'}
                                     </div>
+
+                                    <span className={`text-xs font-medium px-2 py-1 rounded 
+      ${d.approval_status === 'pending'
+                                            ? 'bg-yellow-100 text-yellow-700'
+                                            : d.approval_status === 'approved'
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-red-100 text-red-700'}
+    `}>
+                                        {d.approval_status === 'pending'
+                                            ? 'Pendente'
+                                            : d.approval_status === 'approved'
+                                                ? 'Aprovado'
+                                                : 'Reprovado'}
+                                    </span>
+                                </div>
+
+                                <div className='text-sm text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-1'>
+                                    <div><b>CRM:</b> {d.doctors?.crm || '-'}</div>
+                                    <div><b>Especialidade:</b> {d.doctors?.specialty || '-'}</div>
+                                    <div><b>Telefone:</b> {d.doctors?.phone || '-'}</div>
+                                    <div><b>Documento:</b> {d.doctors?.document || '-'}</div>
+                                </div>
+
+                                {d.doctors?.bio && (
+                                    <div className='text-sm text-gray-500'>
+                                        {d.doctors.bio}
+                                    </div>
+                                )}
+
+                                <div className='flex gap-2 justify-end'>
+                                    <Button
+                                        variant='primary'
+                                        disabled={d.approval_status === 'approved'}
+                                        onClick={() => updateStatus(d.id, 'approved')}
+                                    >
+                                        Aprovar
+                                    </Button>
+
+                                    <Button
+                                        variant='danger'
+                                        disabled={d.approval_status === 'rejected'}
+                                        onClick={() => updateStatus(d.id, 'rejected')}
+                                    >
+                                        Reprovar
+                                    </Button>
                                 </div>
                             </div>
                         ))}

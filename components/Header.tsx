@@ -5,9 +5,11 @@ components/Header.tsx
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { usePathname } from 'next/navigation'
 
 export default function Header() {
   const [type, setType] = useState<'doctor' | 'clinic' | 'admin' | null>(null)
+  const pathname = usePathname()
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -46,35 +48,115 @@ export default function Header() {
   }
 
   return (
-    <div className='bg-gray-900 text-white p-4 flex justify-between items-center'>
-      <div className='font-bold'>Plantões</div>
+    <div className='bg-white border-b px-6 py-3 flex justify-between items-center'>
+      <div className='font-semibold text-gray-900 text-lg'>
+        Plantões
+      </div>
 
       <div className='flex gap-4 items-center'>
         {type === 'doctor' && (
           <>
-            <a href='/shifts'>Plantões</a>
-            <a href='/my-shifts'>Meus plantões</a>
-            <a href='/history'>Histórico</a>
-            <a href='/doctor'>Perfil</a>
+            <a
+              href='/shifts'
+              className={`text-sm transition ${pathname === '/shifts'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Plantões
+            </a>
+
+            <a
+              href='/my-shifts'
+              className={`text-sm transition ${pathname === '/my-shifts'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Meus plantões
+            </a>
+
+            <a
+              href='/history'
+              className={`text-sm transition ${pathname === '/history'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Histórico
+            </a>
+
+            <a
+              href='/doctor'
+              className={`text-sm transition ${pathname === '/doctor'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Perfil
+            </a>
           </>
         )}
 
         {type === 'clinic' && (
           <>
-            <a href='/clinic/shifts'>Plantões</a>
-            <a href='/clinic/financial'>Financeiro</a>
+            <a
+              href='/clinic/shifts'
+              className={`text-sm transition ${pathname === '/clinic/shifts'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Plantões
+            </a>
+
+            <a
+              href='/clinic/financial'
+              className={`text-sm transition ${pathname === '/clinic/financial'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Financeiro
+            </a>
           </>
         )}
 
         {type === 'admin' && (
           <>
-            <a href='/admin'>Home</a>
-            <a href='/admin/clinics'>Clínicas</a>
-            <a href='/admin/doctors'>Médicos</a>
+            <a
+              href='/admin'
+              className={`text-sm transition ${pathname === '/admin'
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Home
+            </a>
+
+            <a
+              href='/admin/clinics'
+              className={`text-sm transition ${pathname.startsWith('/admin/clinics')
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Clínicas
+            </a>
+
+            <a
+              href='/admin/doctors'
+              className={`text-sm transition ${pathname === '/admin/doctors'
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Médicos
+            </a>
           </>
         )}
 
-        <button onClick={logout} className='bg-red-600 px-3 py-1 rounded'>
+        <button onClick={logout} className='px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm transition'>
           Sair
         </button>
       </div>

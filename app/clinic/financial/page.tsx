@@ -5,6 +5,9 @@ app/clinic/financial/page.tsx
 
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
 
 export default function FinancialPage() {
   const [shifts, setShifts] = useState<any[]>([])
@@ -131,106 +134,135 @@ export default function FinancialPage() {
 
       {!loading && (
         <>
-          <div className='flex gap-2 relative'>
+          <Card>
+            <div className='flex flex-col gap-4'>
 
-            <div className='relative w-64'>
-              <input
-                placeholder='Buscar médico'
-                value={doctorSearch}
-                onChange={e => {
-                  setDoctorSearch(e.target.value)
-                  setSelectedDoctor(null)
-                }}
-                className='border p-2 w-full max-w-md'
-              />
+              <div className='text-lg font-semibold text-gray-900'>
+                Filtros
+              </div>
 
-              {doctorSearch && !selectedDoctor && (
-                <div className='absolute bg-white border w-full max-h-40 overflow-y-auto z-10'>
-                  {doctors
-                    .filter(d =>
-                      d.name.toLowerCase().includes(doctorSearch.toLowerCase())
-                    )
-                    .map(d => (
-                      <div
-                        key={d.id}
-                        onClick={() => {
-                          setSelectedDoctor(d)
-                          setDoctorSearch(d.name)
-                        }}
-                        className='p-2 hover:bg-gray-100 cursor-pointer'
-                      >
-                        {d.name}
-                      </div>
-                    ))}
+              <div className='flex flex-col lg:flex-row gap-3'>
+
+                <div className='relative w-full lg:w-64'>
+                  <Input
+                    value={doctorSearch}
+                    onChange={(v) => {
+                      setDoctorSearch(v)
+                      setSelectedDoctor(null)
+                    }}
+                    placeholder='Buscar médico'
+                  />
+
+                  {doctorSearch && !selectedDoctor && (
+                    <div className='absolute bg-white border w-full max-h-40 overflow-y-auto z-10 rounded shadow'>
+                      {doctors
+                        .filter(d =>
+                          d.name.toLowerCase().includes(doctorSearch.toLowerCase())
+                        )
+                        .map(d => (
+                          <div
+                            key={d.id}
+                            onClick={() => {
+                              setSelectedDoctor(d)
+                              setDoctorSearch(d.name)
+                            }}
+                            className='p-2 hover:bg-gray-100 cursor-pointer'
+                          >
+                            {d.name}
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <Input
+                  type='date'
+                  value={startDate}
+                  onChange={setStartDate}
+                />
+
+                <Input
+                  type='date'
+                  value={endDate}
+                  onChange={setEndDate}
+                />
+
+                <Button onClick={load}>
+                  Filtrar
+                </Button>
+
+              </div>
+
             </div>
+          </Card>
+          <Card>
+            <div className='flex flex-col'>
+              <span className='text-sm text-gray-500'>
+                Total no período
+              </span>
 
-            <input
-              type='date'
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              className='border p-2'
-            />
-
-            <input
-              type='date'
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
-              className='border p-2'
-            />
-
-            <button
-              onClick={load}
-              className='bg-blue-600 text-white px-3'
-            >
-              Filtrar
-            </button>
-          </div>
-          <div className='font-bold text-lg'>
-            Total: R$ {total}
-          </div>
+              <span className='text-2xl font-semibold text-gray-900'>
+                R$ {total}
+              </span>
+            </div>
+          </Card>
 
           {shifts.map(shift => (
             <div
               key={shift.id}
-              className={`border p-3 rounded text-black ${shift.paid ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'
-                }`}
+              className='border border-gray-200 p-4 rounded-lg bg-white flex flex-col gap-2 hover:shadow-sm transition'
             >
-              <p><b>Médico:</b> {shift.doctors?.name}</p>
-              <p><b>Valor:</b> R$ {shift.value}</p>
-              <p><b>Data:</b> {new Date(shift.start_time).toLocaleString()}</p>
-              {new Date(shift.start_time) < new Date() &&
-                !shift.finished_by_doctor &&
-                !shift.missed_by_clinic && (
-                  <button
-                    onClick={() => markAsMissed(shift)}
-                    className='mt-2 p-2 bg-red-600 text-white rounded'
-                  >
-                    Marcar falta
-                  </button>
-                )}
-              <p>
-                <b>Status:</b>{' '}
-                <span className={shift.paid ? 'text-green-600' : 'text-red-600'}>
+              <div className='flex justify-between items-center'>
+                <div className='font-semibold text-gray-900'>
+                  {shift.doctors?.name || 'Sem médico'}
+                </div>
+
+                <span className={`text-xs font-medium px-2 py-1 rounded 
+      ${shift.paid
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'}
+    `}>
                   {shift.paid ? 'Pago' : 'Não pago'}
                 </span>
-              </p>
+              </div>
+
+              <div className='text-sm text-gray-600'>
+                <div><b>Valor:</b> R$ {shift.value}</div>
+                <div><b>Data:</b> {new Date(shift.start_time).toLocaleString()}</div>
+              </div>
+
               {!shift.finished_by_doctor && (
-                <p className='text-sm text-yellow-700'>
-                  Aguardando médico finalizar o plantão
-                </p>
+                <div className='text-xs text-yellow-700'>
+                  Aguardando médico finalizar
+                </div>
               )}
-              <button
-                disabled={!shift.finished_by_doctor || shift.missed_by_clinic}
-                onClick={() => togglePaid(shift.id, shift.paid)}
-                className={`mt-2 p-2 text-white rounded ${shift.finished_by_doctor && !shift.missed_by_clinic
-                  ? 'bg-blue-600'
-                  : 'bg-gray-400 cursor-not-allowed'
-                  }`}
-              >
-                Marcar como {shift.paid ? 'não pago' : 'pago'}
-              </button>
+
+              {shift.missed_by_clinic && (
+                <div className='text-xs text-red-700 font-medium'>
+                  Médico faltou
+                </div>
+              )}
+
+              <div className='flex gap-2 mt-2 flex-wrap'>
+                {new Date(shift.start_time) < new Date() &&
+                  !shift.finished_by_doctor &&
+                  !shift.missed_by_clinic && (
+                    <Button
+                      variant='danger'
+                      onClick={() => markAsMissed(shift)}
+                    >
+                      Marcar falta
+                    </Button>
+                  )}
+
+                <Button
+                  variant='secondary'
+                  disabled={!shift.finished_by_doctor || shift.missed_by_clinic}
+                  onClick={() => togglePaid(shift.id, shift.paid)}
+                >
+                  {shift.paid ? 'Marcar como não pago' : 'Marcar como pago'}
+                </Button>
+              </div>
             </div>
           ))}
         </>

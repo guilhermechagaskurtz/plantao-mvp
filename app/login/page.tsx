@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useState } from 'react'
 import { useEffect } from 'react'
+import Card from '@/components/ui/Card'
+import Input from '@/components/ui/Input'
+import Button from '@/components/ui/Button'
 
 export default function Login() {
   const router = useRouter()
@@ -162,66 +165,92 @@ export default function Login() {
   }
 
   return (
-    <div className='flex flex-col gap-X'>
-      {error && (
-        <div className='bg-red-100 text-red-700 p-2 rounded'>
-          {error}
+    <div className='min-h-[70vh] flex items-center justify-center'>
+
+      <Card className='w-full max-w-md'>
+
+        <div className='flex flex-col gap-4'>
+
+          <div className='text-center'>
+            <h1 className='text-xl font-semibold text-gray-900'>
+              Acessar sistema
+            </h1>
+            <p className='text-sm text-gray-500'>
+              Entre ou crie sua conta
+            </p>
+          </div>
+
+          {error && (
+            <div className='bg-red-100 text-red-700 p-2 rounded text-sm'>
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className='bg-green-100 text-green-700 p-2 rounded text-sm'>
+              {success}
+            </div>
+          )}
+
+          <Input
+            value={email}
+            onChange={setEmail}
+            placeholder='Email'
+          />
+
+          <Input
+            type='password'
+            value={password}
+            onChange={setPassword}
+            placeholder='Senha'
+          />
+
+          {mode === 'login' ? (
+            <>
+              <Button
+                onClick={handleLogin}
+                disabled={loading}
+              >
+                {loading ? 'Entrando...' : 'Entrar'}
+              </Button>
+
+              <button
+                onClick={() => {
+                  setMode('register')
+                  setError('')
+                  setSuccess('')
+                }}
+                className='text-sm text-blue-600 hover:underline'
+              >
+                Criar conta
+              </button>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={handleRegister}
+                disabled={loading}
+              >
+                {loading ? 'Criando...' : 'Registrar'}
+              </Button>
+
+              <button
+                onClick={() => {
+                  setMode('login')
+                  setError('')
+                  setSuccess('')
+                }}
+                className='text-sm text-blue-600 hover:underline'
+              >
+                Já tenho conta
+              </button>
+            </>
+          )}
+
         </div>
-      )}
 
-      {success && (
-        <div className='bg-green-100 text-green-700 p-2 rounded'>
-          {success}
-        </div>
-      )}
-      <input placeholder='email' onChange={e => setEmail(e.target.value)} />
-      <input placeholder='senha' type='password' onChange={e => setPassword(e.target.value)} />
+      </Card>
 
-      {mode === 'register' && null}
-
-      {mode === 'login' ? (
-        <>
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className='p-2 bg-blue-600 text-white rounded disabled:opacity-50'
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-
-          <button
-            onClick={() => {
-              setMode('register')
-              setError('')
-              setSuccess('')
-            }}
-            className='text-blue-600'
-          >
-            Criar conta
-          </button>
-        </>
-      ) : (
-        <>
-          <button
-            onClick={handleRegister}
-            disabled={loading}
-            className='p-2 bg-green-600 text-white rounded disabled:opacity-50'
-          >
-            {loading ? 'Criando...' : 'Registrar'}
-          </button>
-
-          <button
-            onClick={() => {
-              setMode('login')
-              setError('')
-              setSuccess('')
-            }}
-            className='text-blue-600'
-          >
-            Já tenho conta
-          </button>
-        </>
-      )}
     </div>
   )
 }

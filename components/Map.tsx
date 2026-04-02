@@ -88,7 +88,7 @@ export default function Map({
         }
     }, [])
     return (
-        <div className="w-full h-[400px] relative overflow-hidden">
+        <div className="w-full h-[500px] lg:h-[600px] relative overflow-hidden rounded-lg border">
             <MapContainer
                 center={center as any}
                 zoom={13}
