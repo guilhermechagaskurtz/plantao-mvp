@@ -16,7 +16,7 @@ export default function Input({
     return (
         <input
             type={type}
-            value={value}
+            value={value || ''}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             className={`border border-gray-300 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none px-3 py-2 rounded w-full ${className}`}

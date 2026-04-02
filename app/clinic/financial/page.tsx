@@ -20,6 +20,7 @@ export default function FinancialPage() {
   const [doctors, setDoctors] = useState<any[]>([])
   const [doctorSearch, setDoctorSearch] = useState('')
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null)
+  const [actionLoading, setActionLoading] = useState(false)
 
 
   useEffect(() => {
@@ -94,40 +95,55 @@ export default function FinancialPage() {
   }
 
   const togglePaid = async (id: string, current: boolean) => {
-    const { error } = await supabase
-      .from('shifts')
-      .update({ paid: !current })
-      .eq('id', id)
+    setActionLoading(true)
+    setError('')
 
-    if (!error) {
-      setShifts(prev =>
-        prev.map(s =>
-          s.id === id ? { ...s, paid: !current } : s
-        )
-      )
+    if (current) {
+      const { error } = await supabase
+        .from('shifts')
+        .update({ paid: false })
+        .eq('id', id)
+
+      if (error) {
+        setError(error.message)
+        setActionLoading(false)
+        return
+      }
+
+      await load()
+      setActionLoading(false)
+      return
     }
+
+    const { error } = await supabase.rpc('mark_shift_paid', {
+      p_shift_id: id
+    })
+
+    if (error) {
+      setError(error.message)
+      setActionLoading(false)
+      return
+    }
+
+    await load()
+    setActionLoading(false)
   }
 
   const markAsMissed = async (shift: any) => {
-    const { error } = await supabase
-      .from('shifts')
-      .update({ missed_by_clinic: true })
-      .eq('id', shift.id)
+    const { error } = await supabase.rpc('mark_shift_missed', {
+      p_shift_id: shift.id
+    })
 
     if (error) {
       setError(error.message)
       return
     }
 
-    setShifts(prev =>
-      prev.map(s =>
-        s.id === shift.id ? { ...s, missed_by_clinic: true } : s
-      )
-    )
+    await load()
   }
 
   return (
-    <div className='flex flex-col gap-X'>
+    <div className='flex flex-col gap-4'>
       {error && <div className='text-red-500'>{error}</div>}
 
       {loading && <div>Carregando...</div>}
@@ -244,20 +260,23 @@ export default function FinancialPage() {
               )}
 
               <div className='flex gap-2 mt-2 flex-wrap'>
-                {new Date(shift.start_time) < new Date() &&
-                  !shift.finished_by_doctor &&
-                  !shift.missed_by_clinic && (
-                    <Button
-                      variant='danger'
-                      onClick={() => markAsMissed(shift)}
-                    >
-                      Marcar falta
-                    </Button>
-                  )}
+                {new Date(shift.start_time) < new Date() && !shift.missed_by_clinic && (
+                  <Button
+                    variant='danger'
+                    disabled={shift.finished_by_doctor}
+                    onClick={() => markAsMissed(shift)}
+                  >
+                    Marcar falta
+                  </Button>
+                )}
 
                 <Button
                   variant='secondary'
-                  disabled={!shift.finished_by_doctor || shift.missed_by_clinic}
+                  disabled={
+                    actionLoading ||
+                    !shift.finished_by_doctor ||
+                    shift.missed_by_clinic
+                  }
                   onClick={() => togglePaid(shift.id, shift.paid)}
                 >
                   {shift.paid ? 'Marcar como não pago' : 'Marcar como pago'}

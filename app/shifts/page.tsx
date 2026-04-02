@@ -120,7 +120,17 @@ export default function ShiftsPage() {
 
     let query = supabase
       .from('shifts')
-      .select('*')
+      .select(`
+        *,
+        clinics:clinic_id (
+          name,
+          address,
+          number,
+          complement,
+          city,
+          state
+        )
+      `)
       .eq('status', 'open')
     query = query.gt('start_time', new Date().toISOString())
     if (doctor.specialty) {
@@ -143,14 +153,30 @@ export default function ShiftsPage() {
 
     const now = new Date()
 
-    const filtered = shifts.filter(shift => {
-      // open: só futuros
-      if (shift.status === 'open') {
-        return new Date(shift.start_time) > now
-      }
+    const filtered = shifts
+      .filter(shift => {
+        if (shift.status === 'open') {
+          return new Date(shift.start_time) > now
+        }
+        return false
+      })
+      .sort((a, b) => {
+        const distA = getDistanceKm(
+          doctor?.latitude,
+          doctor?.longitude,
+          a.latitude,
+          a.longitude
+        )
 
-      return false
-    })
+        const distB = getDistanceKm(
+          doctor?.latitude,
+          doctor?.longitude,
+          b.latitude,
+          b.longitude
+        )
+
+        return distA - distB
+      })
 
     setShifts(filtered)
     setLoading(false)
@@ -288,13 +314,15 @@ export default function ShiftsPage() {
               <div
                 key={shift.id}
                 onClick={() => setSelectedShiftId(shift.id)}
-                className={`p-4 bg-white rounded-lg cursor-pointer transition border 
-  ${selectedShiftId === shift.id
+                className={`p-4 bg-white rounded-lg cursor-pointer transition border flex flex-col gap-3
+    ${selectedShiftId === shift.id
                     ? 'border-blue-600 shadow-md'
                     : 'border-gray-200 hover:border-gray-400 hover:shadow-sm'
                   }`}
               >
-                <div className='flex justify-between items-center mb-2'>
+
+                {/* HEADER */}
+                <div className='flex justify-between items-center'>
                   <div className='font-semibold text-gray-900'>
                     {shift.specialty}
                   </div>
@@ -304,31 +332,56 @@ export default function ShiftsPage() {
                   </span>
                 </div>
 
-                <div className='text-sm text-gray-600'>
-                  <div><b>Início:</b> {new Date(shift.start_time).toLocaleString()}</div>
-                  <div><b>Fim:</b> {new Date(shift.end_time).toLocaleString()}</div>
-                  <div><b>Distância:</b> {
-                    Math.round(
+                {/* VALOR */}
+                <div className='text-lg font-semibold text-gray-900'>
+                  R$ {Number(shift.value).toFixed(2)}
+                </div>
+
+                {/* INFO */}
+                <div className='text-sm text-gray-600 flex flex-col gap-1'>
+                  <p><b>Clínica:</b> {shift.clinics?.name || '-'}</p>
+
+                  <p>
+                    <b>Endereço:</b>{' '}
+                    {shift.clinics
+                      ? `${shift.clinics.address}, ${shift.clinics.number}${shift.clinics.complement ? ' - ' + shift.clinics.complement : ''} - ${shift.clinics.city}/${shift.clinics.state}`
+                      : '-'}
+                  </p>
+
+                  <p>
+                    <b>Início:</b> {new Date(shift.start_time).toLocaleString()}
+                  </p>
+
+                  <p>
+                    <b>Fim:</b> {new Date(shift.end_time).toLocaleString()}
+                  </p>
+
+                  <p>
+                    <b>Distância:</b>{' '}
+                    {Math.round(
                       getDistanceKm(
                         doctor?.latitude,
                         doctor?.longitude,
                         shift.latitude,
                         shift.longitude
                       )
-                    )
-                  } km</div>
+                    )} km
+                  </p>
                 </div>
 
-                <div className='mt-3'>
+                {/* AÇÃO */}
+                <div className='mt-2'>
                   <Button
+                    disabled={acceptingId === shift.id}
                     onClick={(e) => {
                       e.stopPropagation()
                       acceptShift(shift)
                     }}
                   >
-                    Aceitar
+                    {acceptingId === shift.id ? 'Aceitando...' : 'Aceitar'}
                   </Button>
                 </div>
+
               </div>
             ))}
           </div>

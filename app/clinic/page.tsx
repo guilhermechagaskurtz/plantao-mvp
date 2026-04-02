@@ -94,7 +94,7 @@ export default function ClinicPage() {
   }
 
   return (
-    <div className='flex flex-col gap-X'>
+    <div className='flex flex-col gap-4'>
       {error && (
         <div className='bg-red-100 text-red-700 p-2 rounded'>
           {error}
