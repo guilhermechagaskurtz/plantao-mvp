@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export default function Header() {
-  const [type, setType] = useState<'doctor' | 'clinic' | null>(null)
+  const [type, setType] = useState<'doctor' | 'clinic' | 'admin' | null>(null)
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -63,6 +63,14 @@ export default function Header() {
           <>
             <a href='/clinic/shifts'>Plantões</a>
             <a href='/clinic/financial'>Financeiro</a>
+          </>
+        )}
+
+        {type === 'admin' && (
+          <>
+            <a href='/admin'>Home</a>
+            <a href='/admin/clinics'>Clínicas</a>
+            <a href='/admin/doctors'>Médicos</a>
           </>
         )}
 
