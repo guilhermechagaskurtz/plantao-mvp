@@ -52,6 +52,8 @@ export default function FinancialPage() {
     value,
     paid,
     start_time,
+    finished_by_doctor,
+    missed_by_clinic,
     doctors:accepted_doctor_id (
       name
     )
@@ -101,6 +103,24 @@ export default function FinancialPage() {
         )
       )
     }
+  }
+
+  const markAsMissed = async (shift: any) => {
+    const { error } = await supabase
+      .from('shifts')
+      .update({ missed_by_clinic: true })
+      .eq('id', shift.id)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    setShifts(prev =>
+      prev.map(s =>
+        s.id === shift.id ? { ...s, missed_by_clinic: true } : s
+      )
+    )
   }
 
   return (
@@ -180,16 +200,34 @@ export default function FinancialPage() {
               <p><b>Médico:</b> {shift.doctors?.name}</p>
               <p><b>Valor:</b> R$ {shift.value}</p>
               <p><b>Data:</b> {new Date(shift.start_time).toLocaleString()}</p>
+              {new Date(shift.start_time) < new Date() &&
+                !shift.finished_by_doctor &&
+                !shift.missed_by_clinic && (
+                  <button
+                    onClick={() => markAsMissed(shift)}
+                    className='mt-2 p-2 bg-red-600 text-white rounded'
+                  >
+                    Marcar falta
+                  </button>
+                )}
               <p>
                 <b>Status:</b>{' '}
                 <span className={shift.paid ? 'text-green-600' : 'text-red-600'}>
                   {shift.paid ? 'Pago' : 'Não pago'}
                 </span>
               </p>
-
+              {!shift.finished_by_doctor && (
+                <p className='text-sm text-yellow-700'>
+                  Aguardando médico finalizar o plantão
+                </p>
+              )}
               <button
+                disabled={!shift.finished_by_doctor || shift.missed_by_clinic}
                 onClick={() => togglePaid(shift.id, shift.paid)}
-                className='mt-2 p-2 bg-blue-600 text-white rounded'
+                className={`mt-2 p-2 text-white rounded ${shift.finished_by_doctor && !shift.missed_by_clinic
+                  ? 'bg-blue-600'
+                  : 'bg-gray-400 cursor-not-allowed'
+                  }`}
               >
                 Marcar como {shift.paid ? 'não pago' : 'pago'}
               </button>

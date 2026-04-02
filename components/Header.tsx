@@ -10,10 +10,13 @@ export default function Header() {
   const [type, setType] = useState<'doctor' | 'clinic' | null>(null)
 
   useEffect(() => {
-    const load = async () => {
+    const loadProfile = async () => {
       const { data } = await supabase.auth.getUser()
       const user = data.user
-      if (!user) return
+      if (!user) {
+        setType(null)
+        return
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -26,7 +29,15 @@ export default function Header() {
       }
     }
 
-    load()
+    loadProfile()
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      loadProfile()
+    })
+
+    return () => {
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   const logout = async () => {

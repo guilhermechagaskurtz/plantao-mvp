@@ -30,7 +30,7 @@ export default function HistoryPage() {
 
     const { data, error } = await supabase
       .from('shifts')
-      .select('id, value, start_time, end_time, paid')
+      .select('id, value, start_time, end_time, paid, payment_confirmed_by_doctor, missed_by_clinic')
       .eq('accepted_doctor_id', user.id)
       .eq('status', 'accepted')
       .order('start_time', { ascending: false })
@@ -47,6 +47,20 @@ export default function HistoryPage() {
 
     setShifts(past)
     setLoading(false)
+  }
+
+  const confirmPayment = async (shift: any) => {
+    const { error } = await supabase
+      .from('shifts')
+      .update({ payment_confirmed_by_doctor: true })
+      .eq('id', shift.id)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    load()
   }
 
   return (
@@ -71,11 +85,25 @@ export default function HistoryPage() {
           </p>
 
           <p>
-            <b>Status pagamento:</b>{' '}
-            <span className={shift.paid ? 'text-green-600' : 'text-red-600'}>
-              {shift.paid ? 'Pago' : 'Não pago'}
-            </span>
+            <b>Status:</b>{' '}
+            {shift.missed_by_clinic ? (
+              <span className='text-red-700 font-semibold'>
+                Faltou
+              </span>
+            ) : (
+              <span className={shift.paid ? 'text-green-600' : 'text-yellow-600'}>
+                {shift.paid ? 'Pago' : 'Aguardando pagamento'}
+              </span>
+            )}
           </p>
+          {shift.paid && !shift.payment_confirmed_by_doctor && !shift.missed_by_clinic && (
+            <button
+              onClick={() => confirmPayment(shift)}
+              className='mt-2 p-2 bg-green-600 text-white rounded'
+            >
+              Confirmar recebimento
+            </button>
+          )}
         </div>
       ))}
     </div>

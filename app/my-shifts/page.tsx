@@ -58,9 +58,16 @@ export default function MyShiftsPage() {
 
     const now = new Date()
 
-    const future = (data || []).filter(s => new Date(s.end_time) > now)
+    const filtered = (data || []).filter(s => {
+      const end = new Date(s.end_time)
 
-    setShifts(future)
+      // mostra:
+      // - plantões futuros
+      // - OU já iniciados mas ainda não finalizados pelo médico
+      return end > now || !s.finished_by_doctor
+    })
+
+    setShifts(filtered)
     setLoading(false)
   }
 
@@ -71,6 +78,20 @@ export default function MyShiftsPage() {
         status: 'open',
         accepted_doctor_id: null
       })
+      .eq('id', shift.id)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    load()
+  }
+
+  const finishShift = async (shift: any) => {
+    const { error } = await supabase
+      .from('shifts')
+      .update({ finished_by_doctor: true })
       .eq('id', shift.id)
 
     if (error) {
@@ -111,12 +132,22 @@ export default function MyShiftsPage() {
             {new Date(shift.end_time).toLocaleString()}
           </p>
 
-          <button
-            onClick={() => cancelShift(shift)}
-            className='mt-2 p-2 bg-red-600 text-white rounded'
-          >
-            Cancelar plantão
-          </button>
+          {new Date(shift.start_time) > new Date() && (
+            <button
+              onClick={() => cancelShift(shift)}
+              className='mt-2 p-2 bg-red-600 text-white rounded'
+            >
+              Cancelar plantão
+            </button>
+          )}
+          {new Date(shift.start_time) < new Date() && !shift.finished_by_doctor && (
+            <button
+              onClick={() => finishShift(shift)}
+              className='mt-2 p-2 bg-blue-600 text-white rounded'
+            >
+              Finalizar plantão
+            </button>
+          )}
         </div>
       ))}
     </div>
