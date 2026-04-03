@@ -1,194 +1,203 @@
-/*
-app/doctor/page.tsx
-*/
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useState } from 'react'
-import { useEffect } from 'react'
 
-const specialties = [
-  'Clínico Geral',
-  'Cardiologia',
-  'Pediatria',
-  'Ortopedia',
-  'Ginecologia',
-  'Dermatologia',
-  'Psiquiatria'
-]
+type ShiftItem = {
+    id: string
+    specialty: string
+    start_time: string
+    status: 'open' | 'accepted'
+    accepted_doctor_id: string | null
+}
 
-export default function DoctorPage() {
-  const [name, setName] = useState('')
-  const [crm, setCrm] = useState('')
-  const [specialty, setSpecialty] = useState('')
-  const [phone, setPhone] = useState('')
-  const [document, setDocument] = useState('')
-  const [bio, setBio] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
+function getLocalDateKey(date: Date) {
+    return date.toISOString().split('T')[0]
+}
 
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
+export default function DoctorDashboard() {
+    const [acceptedShifts, setAcceptedShifts] = useState<ShiftItem[]>([])
+    const [availableShifts, setAvailableShifts] = useState<ShiftItem[]>([])
+    const [loading, setLoading] = useState(true)
+    const [showAvailable, setShowAvailable] = useState(false)
+    const [currentMonth, setCurrentMonth] = useState(new Date())
 
-      if (!user) {
-        setError('Usuário não autenticado')
-        setLoading(false)
-        return
-      }
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
-      const { data: doctor } = await supabase
-        .from('doctors')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+    useEffect(() => {
+        const load = async () => {
+            const { data } = await supabase.auth.getUser()
+            const user = data.user
+            if (!user) return
 
-      if (doctor) {
-        setName(doctor.name || '')
-        setCrm(doctor.crm || '')
-        setSpecialty(doctor.specialty || '')
-        setPhone(doctor.phone || '')
-        setDocument(doctor.document || '')
-        setBio(doctor.bio || '')
-      }
+            const now = new Date().toISOString()
 
-      setLoading(false)
+            const { data: accepted } = await supabase
+                .from('shifts')
+                .select('*')
+                .eq('accepted_doctor_id', user.id)
+                .eq('status', 'accepted')
+                .gt('start_time', now)
+
+            const { data: available } = await supabase
+                .from('shifts')
+                .select('*')
+                .eq('status', 'open')
+                .gt('start_time', now)
+
+            setAcceptedShifts(accepted || [])
+            setAvailableShifts(available || [])
+            setLoading(false)
+        }
+
+        load()
+    }, [])
+
+    const allItems = useMemo(() => {
+        const accepted = acceptedShifts.map(s => ({ ...s, kind: 'accepted' }))
+        const open = showAvailable
+            ? availableShifts.map(s => ({ ...s, kind: 'open' }))
+            : []
+
+        return [...accepted, ...open].sort((a, b) => {
+            // prioridade: accepted primeiro
+            if (a.kind !== b.kind) {
+                return a.kind === 'accepted' ? -1 : 1
+            }
+
+            return new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+        })
+    }, [acceptedShifts, availableShifts, showAvailable])
+
+    const grouped = useMemo(() => {
+        const map: any = {}
+
+        allItems.forEach(item => {
+            const key = getLocalDateKey(new Date(item.start_time))
+            if (!map[key]) map[key] = []
+            map[key].push(item)
+        })
+
+        return map
+    }, [allItems])
+
+    if (loading) return <div className='p-6'>Carregando...</div>
+
+    // MOBILE (lista)
+    if (isMobile) {
+        return (
+            <div className='p-4 flex flex-col gap-4'>
+                <h1 className='text-lg font-bold'>Plantões</h1>
+
+                <label className='flex gap-2 text-sm'>
+                    <input
+                        type='checkbox'
+                        checked={showAvailable}
+                        onChange={e => setShowAvailable(e.target.checked)}
+                    />
+                    Mostrar disponíveis
+                </label>
+
+                {Object.entries(grouped).map(([date, items]: any) => (
+                    <div key={date} className='flex flex-col gap-2'>
+                        <div className='font-semibold'>
+                            {new Date(date).toLocaleDateString()}
+                        </div>
+
+                        {items.map((item: any) => (
+                            <div
+                                key={item.id}
+                                onClick={() => (window.location.href = `/shifts/${item.id}`)}
+                                className={`p-3 rounded border cursor-pointer ${item.kind === 'accepted'
+                                    ? 'bg-blue-100'
+                                    : 'bg-gray-100'
+                                    }`}
+                            >
+                                {new Date(item.start_time).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })}{' '}
+                                - {item.specialty}
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </div>
+        )
     }
 
-    load()
-  }, [])
+    // DESKTOP (calendário)
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth()
 
-  const handleSave = async () => {
-    setError('')
-    setSuccess('')
+    const firstDay = new Date(year, month, 1).getDay()
+    const days = new Date(year, month + 1, 0).getDate()
 
-    if (!name) {
-      setError('Informe o nome')
-      return
+    const cells = []
+
+    for (let i = 0; i < firstDay; i++) {
+        cells.push(<div key={'empty-' + i} />)
     }
 
-    if (!crm) {
-      setError('Informe o CRM')
-      return
+    for (let d = 1; d <= days; d++) {
+        const date = new Date(year, month, d)
+        const key = getLocalDateKey(date)
+        const items = grouped[key] || []
+        const visibleItems = items.slice(0, 3)
+        const hiddenCount = items.length - visibleItems.length
+
+        cells.push(
+            <div key={d} className='border p-2 min-h-[120px] rounded'>
+                <div className='text-sm font-semibold'>{d}</div>
+
+                {visibleItems.map((item: any) => (
+                    <div
+                        key={item.id}
+                        onClick={() => (window.location.href = `/shifts/${item.id}`)}
+                        className={`text-xs mt-1 px-1 rounded cursor-pointer ${item.kind === 'accepted'
+                            ? 'bg-blue-200'
+                            : 'bg-gray-200'
+                            }`}
+                    >
+                        {new Date(item.start_time).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}{' '}
+                        {item.specialty}
+                    </div>
+                ))}
+                {hiddenCount > 0 && (
+                    <div className='text-xs mt-1 text-gray-500'>
+                        +{hiddenCount} mais
+                    </div>
+                )}
+            </div>
+        )
     }
 
-    setSubmitting(true)
+    return (
+        <div className='p-6 flex flex-col gap-4'>
+            <h1 className='text-xl font-bold'>Calendário</h1>
 
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData.user
+            <label className='flex gap-2 text-sm'>
+                <input
+                    type='checkbox'
+                    checked={showAvailable}
+                    onChange={e => setShowAvailable(e.target.checked)}
+                />
+                Mostrar plantões disponíveis
+            </label>
 
-    if (!user) {
-      setError('Usuário não autenticado')
-      setSubmitting(false)
-      return
-    }
-
-    const { error } = await supabase.from('doctors').upsert({
-      id: user.id,
-      name,
-      crm,
-      specialty,
-      phone,
-      document,
-      bio,
-      latitude: -30,
-      longitude: -51
-    })
-
-    if (error) {
-      setError(error.message)
-      setSubmitting(false)
-      return
-    }
-
-    setSuccess('Dados salvos com sucesso')
-    setSubmitting(false)
-  }
-
-  return (
-    <div className='flex flex-col gap-6 items-center'>
-      {error && (
-        <div className='bg-red-100 text-red-700 p-3 rounded'>
-          {error}
+            <div className='grid grid-cols-7 gap-2'>
+                {WEEK_DAYS.map(d => (
+                    <div key={d} className='text-center font-semibold'>
+                        {d}
+                    </div>
+                ))}
+                {cells}
+            </div>
         </div>
-      )}
-
-      {success && (
-        <div className='bg-green-100 text-green-700 p-3 rounded'>
-          {success}
-        </div>
-      )}
-
-      {loading && (
-        <div className='text-gray-500'>Carregando...</div>
-      )}
-
-      <div className='bg-white border rounded-lg shadow-sm p-6 flex flex-col gap-4 max-w-2xl w-full'>
-        <h1 className='text-xl font-bold'>Perfil do médico</h1>
-
-        <input
-          placeholder='Nome'
-          value={name}
-          onChange={e => setName(e.target.value)}
-          className='border p-2 rounded w-full'
-        />
-
-        <input
-          placeholder='CRM'
-          value={crm}
-          onChange={e => setCrm(e.target.value)}
-          className='border p-2 rounded w-full'
-        />
-
-        <input
-          placeholder='Telefone'
-          value={phone}
-          onChange={e => setPhone(e.target.value)}
-          className='border p-2 rounded w-full'
-        />
-
-        <input
-          placeholder='Documento (CPF ou outro)'
-          value={document}
-          onChange={e => setDocument(e.target.value)}
-          className='border p-2 rounded w-full'
-        />
-
-        <textarea
-          placeholder='Sobre você'
-          value={bio}
-          onChange={e => setBio(e.target.value)}
-          className='border p-2 rounded w-full'
-        />
-
-        <select
-          value={specialty}
-          onChange={e => setSpecialty(e.target.value)}
-          className='border p-2 rounded w-full'
-        >
-          <option value=''>Selecione a especialidade</option>
-
-          {specialties.map(s => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={handleSave}
-          disabled={submitting || loading}
-          className='bg-blue-600 text-white p-2 rounded disabled:opacity-50'
-        >
-          {submitting ? 'Salvando...' : 'Salvar'}
-        </button>
-      </div>
-    </div>
-  )
+    )
 }

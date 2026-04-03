@@ -28,8 +28,15 @@ export default function CreateClinicPage() {
     const handleSubmit = async () => {
         setError('')
 
-        if (!form.name || !form.email) {
-            setError('Nome e email são obrigatórios')
+        if (
+            !form.name ||
+            !form.email ||
+            !form.address ||
+            !form.number ||
+            !form.city ||
+            !form.state
+        ) {
+            setError('Preencha todos os dados obrigatórios de endereço')
             return
         }
 

@@ -49,7 +49,7 @@ export default function Login() {
           return
         }
 
-        router.replace('/shifts')
+        router.replace('/doctor')
       } else if (profile.type === 'clinic') {
         router.replace('/clinic/shifts')
       } else if (profile.type === 'admin') {

@@ -202,8 +202,15 @@ export default function CreateShift() {
         start_time: new Date(start),
         end_time: new Date(end),
         value: Number(value),
+
         latitude: clinic.latitude,
-        longitude: clinic.longitude
+        longitude: clinic.longitude,
+
+        address: clinic.address,
+        number: clinic.number,
+        complement: clinic.complement,
+        city: clinic.city,
+        state: clinic.state
       })
 
       error = res.error

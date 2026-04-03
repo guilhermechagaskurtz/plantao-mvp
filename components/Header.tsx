@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation'
 export default function Header() {
   const [type, setType] = useState<'doctor' | 'clinic' | 'admin' | null>(null)
   const pathname = usePathname()
-
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     const loadProfile = async () => {
       const { data } = await supabase.auth.getUser()
@@ -48,14 +48,34 @@ export default function Header() {
   }
 
   return (
-    <div className='bg-white border-b px-6 py-3 flex justify-between items-center'>
-      <div className='font-semibold text-gray-900 text-lg'>
-        Plantões
+    <div className='relative bg-white border-b px-6 py-3 flex justify-between items-center'>
+      <div className='flex justify-between items-center w-full md:w-auto'>
+        <div className='font-semibold text-gray-900 text-lg'>
+          Plantões
+        </div>
+
+        <button
+          className='md:hidden text-xl'
+          onClick={() => setOpen(prev => !prev)}
+        >
+          ☰
+        </button>
       </div>
 
-      <div className='flex gap-4 items-center'>
+      <div className='hidden md:flex gap-4 items-center'>
         {type === 'doctor' && (
           <>
+
+            <a
+              href='/doctor'
+              className={`text-sm transition ${pathname === '/doctor'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Home
+            </a>
+
             <a
               href='/shifts'
               className={`text-sm transition ${pathname === '/shifts'
@@ -87,14 +107,15 @@ export default function Header() {
             </a>
 
             <a
-              href='/doctor'
-              className={`text-sm transition ${pathname === '/doctor'
+              href='/doctor/profile'
+              className={`text-sm transition ${pathname === '/doctor/profile'
                 ? 'text-blue-600 font-medium'
                 : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               Perfil
             </a>
+
           </>
         )}
 
@@ -127,8 +148,8 @@ export default function Header() {
             <a
               href='/admin'
               className={`text-sm transition ${pathname === '/admin'
-                  ? 'text-blue-600 font-medium'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               Home
@@ -137,8 +158,8 @@ export default function Header() {
             <a
               href='/admin/clinics'
               className={`text-sm transition ${pathname.startsWith('/admin/clinics')
-                  ? 'text-blue-600 font-medium'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               Clínicas
@@ -147,8 +168,8 @@ export default function Header() {
             <a
               href='/admin/doctors'
               className={`text-sm transition ${pathname === '/admin/doctors'
-                  ? 'text-blue-600 font-medium'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               Médicos
@@ -160,6 +181,43 @@ export default function Header() {
           Sair
         </button>
       </div>
+      {open && (
+        <div className='absolute top-full left-0 w-full md:hidden border-t px-6 py-3 flex flex-col gap-3 bg-white shadow-lg z-50'>
+
+          {type === 'doctor' && (
+            <>
+              <a href='/doctor' onClick={() => setOpen(false)}>Home</a>
+              <a href='/shifts' onClick={() => setOpen(false)}>Plantões</a>
+              <a href='/my-shifts' onClick={() => setOpen(false)}>Meus plantões</a>
+              <a href='/history' onClick={() => setOpen(false)}>Histórico</a>
+              <a href='/doctor/profile' onClick={() => setOpen(false)}>Perfil</a>
+            </>
+          )}
+
+          {type === 'clinic' && (
+            <>
+              <a href='/clinic/shifts' onClick={() => setOpen(false)}>Plantões</a>
+              <a href='/clinic/financial' onClick={() => setOpen(false)}>Financeiro</a>
+            </>
+          )}
+
+          {type === 'admin' && (
+            <>
+              <a href='/admin' onClick={() => setOpen(false)}>Home</a>
+              <a href='/admin/clinics' onClick={() => setOpen(false)}>Clínicas</a>
+              <a href='/admin/doctors' onClick={() => setOpen(false)}>Médicos</a>
+            </>
+          )}
+
+          <button
+            onClick={logout}
+            className='px-3 py-1.5 bg-red-600 text-white rounded-md text-sm'
+          >
+            Sair
+          </button>
+
+        </div>
+      )}
     </div>
   )
 }
