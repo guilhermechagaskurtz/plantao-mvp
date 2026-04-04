@@ -192,7 +192,7 @@ export default function EditClinicPage() {
             </button>
 
             <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/admin/clinics')}
                 className='bg-gray-400 text-white p-2 rounded'
             >
                 Voltar

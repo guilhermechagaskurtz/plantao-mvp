@@ -1,3 +1,7 @@
+/*
+admin/doctors/page.tsx
+*/
+
 'use client'
 
 import { supabase } from '@/lib/supabase'
@@ -37,20 +41,19 @@ export default function AdminDoctorsPage() {
                 return
             }
 
-            const { data, error } = await supabase
+            const { data: profilesData, error } = await supabase
                 .from('profiles')
                 .select(`
-          id,
-          approval_status,
-          doctors (
+        id,
+        approval_status,
+        doctors (
             name,
             crm,
-            specialty,
             phone,
             document,
             bio
-          )
-        `)
+        )
+    `)
                 .eq('type', 'doctor')
 
             if (error) {
@@ -59,39 +62,34 @@ export default function AdminDoctorsPage() {
                 return
             }
 
-            setDoctors(data || [])
+            const doctorIds = (profilesData || []).map(d => d.id)
+
+            const { data: specialtiesData } = await supabase
+                .from('doctor_specialties')
+                .select('*')
+                .in('doctor_id', doctorIds)
+
+            const specialtiesMap: Record<string, any[]> = {}
+
+                ; (specialtiesData || []).forEach(s => {
+                    if (!specialtiesMap[s.doctor_id]) {
+                        specialtiesMap[s.doctor_id] = []
+                    }
+                    specialtiesMap[s.doctor_id].push(s)
+                })
+
+            const merged = (profilesData || []).map(d => ({
+                ...d,
+                specialties: specialtiesMap[d.id] || []
+            }))
+
+            setDoctors(merged)
             setLoading(false)
         }
 
         load()
     }, [])
 
-    const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
-        const confirmMessage =
-            status === 'approved'
-                ? 'Deseja aprovar este médico?'
-                : 'Deseja reprovar este médico?'
-
-        const confirmed = window.confirm(confirmMessage)
-
-        if (!confirmed) return
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ approval_status: status })
-            .eq('id', id)
-
-        if (error) {
-            setError(error.message)
-            return
-        }
-
-        setDoctors(prev =>
-            prev.map(d =>
-                d.id === id ? { ...d, approval_status: status } : d
-            )
-        )
-    }
 
     if (loading) {
         return <div className='text-gray-500'>Carregando...</div>
@@ -216,7 +214,14 @@ export default function AdminDoctorsPage() {
 
                                 <div className='text-sm text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-1'>
                                     <div><b>CRM:</b> {d.doctors?.crm || '-'}</div>
-                                    <div><b>Especialidade:</b> {d.doctors?.specialty || '-'}</div>
+                                    <div>
+                                        <b>Especialidades:</b>{' '}
+                                        {d.specialties && d.specialties.length > 0
+                                            ? d.specialties
+                                                .map((s: { specialty: string }) => s.specialty)
+                                                .join(', ')
+                                            : '-'}
+                                    </div>
                                     <div><b>Telefone:</b> {d.doctors?.phone || '-'}</div>
                                     <div><b>Documento:</b> {d.doctors?.document || '-'}</div>
                                 </div>
@@ -229,20 +234,15 @@ export default function AdminDoctorsPage() {
 
                                 <div className='flex gap-2 justify-end'>
                                     <Button
-                                        variant='primary'
-                                        disabled={d.approval_status === 'approved'}
-                                        onClick={() => updateStatus(d.id, 'approved')}
+                                        variant='secondary'
+                                        onClick={() => {
+                                            window.location.href = `/admin/doctors/${d.id}`
+                                        }}
                                     >
-                                        Aprovar
+                                        Ver / Editar
                                     </Button>
 
-                                    <Button
-                                        variant='danger'
-                                        disabled={d.approval_status === 'rejected'}
-                                        onClick={() => updateStatus(d.id, 'rejected')}
-                                    >
-                                        Reprovar
-                                    </Button>
+
                                 </div>
                             </div>
                         ))}

@@ -40,6 +40,8 @@ export default function ShiftsPage() {
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null)
   const [specialtyFilter, setSpecialtyFilter] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
+  const [crmStatus, setCrmStatus] = useState<'ok' | 'missing' | 'pending' | 'rejected'>('ok')
+  const [approvedSpecialties, setApprovedSpecialties] = useState<string[]>([])
 
   useEffect(() => {
     if (!error && !success) return
@@ -68,6 +70,27 @@ export default function ShiftsPage() {
       .single()
 
     setDoctor(doctor)
+    const { data: specialties } = await supabase
+      .from('doctor_specialties')
+      .select('*')
+      .eq('doctor_id', user.id)
+
+    setApprovedSpecialties(
+      (specialties || [])
+        .filter(s => s.approved)
+        .map(s => s.specialty)
+    )
+    if (!doctor?.crm) {
+      setCrmStatus('missing')
+    } else if (!doctor?.crm_approved) {
+      if (doctor?.crm_rejection_reason) {
+        setCrmStatus('rejected')
+      } else {
+        setCrmStatus('pending')
+      }
+    } else {
+      setCrmStatus('ok')
+    }
 
     const { data, error } = await supabase
       .from('shifts')
@@ -91,7 +114,20 @@ export default function ShiftsPage() {
       return
     }
 
-    const sorted = (data || []).sort((a, b) => {
+    const filtered = (data || []).filter(shift => {
+      if (!doctor?.latitude || !doctor?.longitude) return true
+
+      const dist = getDistanceKm(
+        doctor.latitude,
+        doctor.longitude,
+        shift.latitude,
+        shift.longitude
+      )
+
+      return dist <= (doctor.radius_km || 10)
+    })
+
+    const sorted = filtered.sort((a, b) => {
       const distA = getDistanceKm(
         doctor?.latitude,
         doctor?.longitude,
@@ -135,7 +171,16 @@ export default function ShiftsPage() {
     })
 
     if (error) {
-      setError('Alguém pegou antes')
+      if (error.message.includes('Conflito')) {
+        setError('Você já possui um plantão neste horário')
+      } else if (error.message.includes('RQE')) {
+        setError('Você não possui RQE aprovado para este plantão')
+      } else if (error.message.includes('Shift inválido')) {
+        setError('Este plantão não está mais disponível')
+      } else {
+        setError('Erro ao aceitar plantão')
+      }
+
       setAcceptingId(null)
       return
     }
@@ -147,12 +192,28 @@ export default function ShiftsPage() {
 
   return (
     <div className='flex flex-col gap-4'>
+      {crmStatus === 'missing' && (
+        <div className='bg-yellow-100 text-yellow-700 p-2 rounded'>
+          Você precisa preencher seu CRM no perfil para aceitar plantões
+        </div>
+      )}
 
+      {crmStatus === 'pending' && (
+        <div className='bg-yellow-100 text-yellow-700 p-2 rounded'>
+          Seu CRM está em análise pelo administrador
+        </div>
+      )}
+
+      {crmStatus === 'rejected' && (
+        <div className='bg-red-100 text-red-700 p-2 rounded'>
+          Seu CRM foi recusado. Atualize seu perfil para reenviar
+        </div>
+      )}
       {error && <div className='bg-red-100 text-red-700 p-2 rounded'>{error}</div>}
       {success && <div className='bg-green-100 text-green-700 p-2 rounded'>{success}</div>}
       {loading && <div className='text-gray-500'>Carregando...</div>}
 
-      {!loading && shifts.length > 0 && (
+      {!loading && (
         <div className="flex flex-col lg:flex-row gap-6">
 
           {/* MAPA */}
@@ -191,6 +252,11 @@ export default function ShiftsPage() {
             {/* LISTA SCROLL */}
             <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
 
+              {shifts.length === 0 && (
+                <div className='text-gray-500'>
+                  Nenhum plantão dentro do seu raio
+                </div>
+              )}
               {shifts
                 .filter(shift => {
                   if (specialtyFilter && shift.specialty !== specialtyFilter) return false
@@ -214,6 +280,18 @@ export default function ShiftsPage() {
                   >
                     <div className='flex justify-between'>
                       <div className='font-semibold'>{shift.specialty}</div>
+                      {shift.requires_rqe && (
+                        <div
+                          className={`text-xs ${approvedSpecialties.includes(shift.specialty)
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                            }`}
+                        >
+                          {approvedSpecialties.includes(shift.specialty)
+                            ? `Você possui RQE aprovado em ${shift.specialty}`
+                            : `Você não possui RQE aprovado em ${shift.specialty}`}
+                        </div>
+                      )}
                       <span className='text-xs bg-blue-100 px-2 py-1 rounded'>Disponível</span>
                     </div>
 
@@ -254,7 +332,11 @@ export default function ShiftsPage() {
 
                     <div className='flex gap-2 mt-2'>
                       <Button
-                        disabled={acceptingId === shift.id}
+                        disabled={
+                          acceptingId === shift.id ||
+                          crmStatus !== 'ok' ||
+                          (shift.requires_rqe && !approvedSpecialties.includes(shift.specialty))
+                        }
                         onClick={(e) => {
                           e.stopPropagation()
                           acceptShift(shift)

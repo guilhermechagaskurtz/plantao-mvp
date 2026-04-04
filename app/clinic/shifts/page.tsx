@@ -35,6 +35,7 @@ export default function CreateShift() {
   const [shifts, setShifts] = useState<any[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const formRef = useRef<HTMLDivElement | null>(null)
+  const [requiresRqe, setRequiresRqe] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -113,10 +114,18 @@ export default function CreateShift() {
     setValue(String(shift.value))
     setStart(new Date(shift.start_time).toISOString().slice(0, 16))
     setEnd(new Date(shift.end_time).toISOString().slice(0, 16))
+    setRequiresRqe(shift.requires_rqe || false)
     formRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   const deleteShift = async (id: string) => {
+    const shift = shifts.find(s => s.id === id)
+
+    if (shift?.status !== 'open') {
+      setError('Não é possível remover um plantão já aceito')
+      return
+    }
+
     setError('')
     setSuccess('')
 
@@ -169,6 +178,10 @@ export default function CreateShift() {
       setError('Horário final inválido')
       return
     }
+    if (new Date(start) <= new Date()) {
+      setError('Não é possível criar plantões no passado')
+      return
+    }
 
     setSubmitting(true)
 
@@ -184,13 +197,22 @@ export default function CreateShift() {
     let error
 
     if (editingId) {
+      const shift = shifts.find(s => s.id === editingId)
+
+      if (shift?.status !== 'open') {
+        setError('Não é possível editar um plantão já aceito')
+        setSubmitting(false)
+        return
+      }
+
       const res = await supabase
         .from('shifts')
         .update({
           specialty,
           start_time: new Date(start),
           end_time: new Date(end),
-          value: Number(value)
+          value: Number(value),
+          requires_rqe: requiresRqe
         })
         .eq('id', editingId)
 
@@ -210,7 +232,8 @@ export default function CreateShift() {
         number: clinic.number,
         complement: clinic.complement,
         city: clinic.city,
-        state: clinic.state
+        state: clinic.state,
+        requires_rqe: requiresRqe
       })
 
       error = res.error
@@ -230,6 +253,7 @@ export default function CreateShift() {
     setValue('')
     setStart('')
     setEnd('')
+    setRequiresRqe(false)
     await loadShifts(user.id)
   }
 
@@ -273,7 +297,20 @@ export default function CreateShift() {
               </option>
             ))}
           </select>
-
+          <label className='flex items-center gap-2 text-sm'>
+            <input
+              type='checkbox'
+              checked={requiresRqe}
+              disabled={!specialty}
+              onChange={e => setRequiresRqe(e.target.checked)}
+            />
+            Requer RQE
+          </label>
+          {!specialty && (
+            <span className='text-xs text-gray-400'>
+              Selecione uma especialidade para exigir RQE
+            </span>
+          )}
           <Input
             value={value}
             onChange={setValue}
@@ -321,8 +358,16 @@ export default function CreateShift() {
             className='border border-gray-200 p-4 rounded-lg bg-white hover:shadow-sm transition flex flex-col gap-2'
           >
             <div className='flex justify-between items-center'>
-              <div className='font-semibold text-gray-900'>
-                {shift.specialty}
+              <div className='flex flex-col'>
+                <div className='font-semibold text-gray-900'>
+                  {shift.specialty}
+                </div>
+
+                {shift.requires_rqe && (
+                  <span className='text-xs text-red-600'>
+                    Requer RQE
+                  </span>
+                )}
               </div>
 
               <span className={`text-xs font-medium px-2 py-1 rounded 

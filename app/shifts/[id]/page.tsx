@@ -20,6 +20,8 @@ export default function ShiftDetailsPage() {
     const [accepting, setAccepting] = useState(false)
 
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [crmStatus, setCrmStatus] = useState<'ok' | 'missing' | 'pending' | 'rejected'>('ok')
+    const [approvedSpecialties, setApprovedSpecialties] = useState<string[]>([])
 
     const acceptShift = async () => {
         const confirmed = window.confirm('Deseja aceitar este plantão?')
@@ -59,7 +61,35 @@ export default function ShiftDetailsPage() {
             const user = authData.user
 
             setCurrentUserId(user?.id || null)
+            if (user?.id) {
+                const { data: specialties } = await supabase
+                    .from('doctor_specialties')
+                    .select('*')
+                    .eq('doctor_id', user.id)
 
+                setApprovedSpecialties(
+                    (specialties || [])
+                        .filter(s => s.approved)
+                        .map(s => s.specialty)
+                )
+                const { data: doctor } = await supabase
+                    .from('doctors')
+                    .select('crm, crm_approved, crm_rejection_reason')
+                    .eq('id', user.id)
+                    .single()
+
+                if (!doctor?.crm) {
+                    setCrmStatus('missing')
+                } else if (!doctor?.crm_approved) {
+                    if (doctor?.crm_rejection_reason) {
+                        setCrmStatus('rejected')
+                    } else {
+                        setCrmStatus('pending')
+                    }
+                } else {
+                    setCrmStatus('ok')
+                }
+            }
             const { data, error } = await supabase
                 .from('shifts')
                 .select(`
@@ -98,10 +128,50 @@ export default function ShiftDetailsPage() {
     return (
         <div className='flex flex-col gap-4'>
             {error && <div className='text-red-500'>{error}</div>}
+            {crmStatus === 'missing' && (
+                <div className='bg-yellow-100 text-yellow-700 p-2 rounded'>
+                    Você precisa preencher seu CRM no perfil para aceitar plantões
+                </div>
+            )}
+
+            {crmStatus === 'pending' && (
+                <div className='bg-yellow-100 text-yellow-700 p-2 rounded'>
+                    Seu CRM está em análise pelo administrador
+                </div>
+            )}
+
+            {crmStatus === 'rejected' && (
+                <div className='bg-red-100 text-red-700 p-2 rounded'>
+                    Seu CRM foi recusado. Atualize seu perfil para reenviar
+                </div>
+            )}
             <div className='bg-white border p-4 rounded flex flex-col gap-2'>
                 <div className='text-lg font-semibold'>
                     {shift.specialty}
                 </div>
+
+                {shift.requires_rqe && (
+                    <div
+                        className={`text-xs ${approvedSpecialties.includes(shift.specialty)
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }`}
+                    >
+                        {approvedSpecialties.includes(shift.specialty)
+                            ? `Você possui RQE aprovado em ${shift.specialty}`
+                            : `Você não possui RQE aprovado em ${shift.specialty}`}
+                    </div>
+                )}
+                {shift.requires_rqe && (
+                    <div
+                        className={`text-xs ${approvedSpecialties.includes(shift.specialty)
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                            }`}
+                    >
+                        Requer RQE aprovado em {shift.specialty}
+                    </div>
+                )}
 
                 <div className='text-xl font-bold'>
                     R$ {Number(shift.value).toFixed(2)}
@@ -149,7 +219,11 @@ export default function ShiftDetailsPage() {
             ) : (
                 <Button
                     onClick={acceptShift}
-                    disabled={accepting}
+                    disabled={
+                        accepting ||
+                        crmStatus !== 'ok' ||
+                        (shift.requires_rqe && !approvedSpecialties.includes(shift.specialty))
+                    }
                 >
                     {accepting ? 'Aceitando...' : 'Aceitar plantão'}
                 </Button>

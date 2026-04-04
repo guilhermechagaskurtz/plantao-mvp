@@ -17,9 +17,12 @@ export default function DoctorPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [radiusKm, setRadiusKm] = useState(10)
+  const [crmApproved, setCrmApproved] = useState(false)
+  const [crmRejectionReason, setCrmRejectionReason] = useState('')
 
   const [specialtiesList, setSpecialtiesList] = useState<
-    { specialty: string; rqe: string }[]
+    { specialty: string; rqe: string; approved?: boolean; rejection_reason?: string }[]
   >([])
 
   const [interests, setInterests] = useState<string[]>([])
@@ -65,26 +68,34 @@ export default function DoctorPage() {
         .single()
 
       if (doctor) {
+        setCrmApproved(doctor.crm_approved ?? false)
+        setCrmRejectionReason(doctor.crm_rejection_reason || '')
         setName(doctor.name || '')
         setCrm(doctor.crm || '')
         setPhone(doctor.phone || '')
         setDocument(doctor.document || '')
         setBio(doctor.bio || '')
+        setRadiusKm(doctor.radius_km || 10)
       }
 
-      const { data: specialtiesData } = await supabase
-        .from('doctor_specialties')
-        .select('*')
-        .eq('doctor_id', user.id)
+      const loadSpecialties = async (userId: string) => {
+        const { data: specialtiesData } = await supabase
+          .from('doctor_specialties')
+          .select('*')
+          .eq('doctor_id', userId)
 
-      if (specialtiesData) {
-        setSpecialtiesList(
-          specialtiesData.map(s => ({
-            specialty: s.specialty,
-            rqe: s.rqe
-          }))
-        )
+        if (specialtiesData) {
+          setSpecialtiesList(
+            specialtiesData.map(s => ({
+              specialty: s.specialty,
+              rqe: s.rqe,
+              approved: s.approved,
+              rejection_reason: s.rejection_reason
+            }))
+          )
+        }
       }
+      await loadSpecialties(user.id)
 
       const { data: interestsData } = await supabase
         .from('doctor_interests')
@@ -132,7 +143,8 @@ export default function DoctorPage() {
       crm,
       phone,
       document,
-      bio
+      bio,
+      radius_km: radiusKm
     })
 
     if (error) {
@@ -141,36 +153,54 @@ export default function DoctorPage() {
       return
     }
 
-    await supabase
-      .from('doctor_specialties')
-      .delete()
-      .eq('doctor_id', user.id)
-
     const validSpecialties = specialtiesList.filter(
       s => s.specialty && s.rqe
     )
+    const specialtiesNames = validSpecialties.map(s => s.specialty)
+    const hasDuplicates = new Set(specialtiesNames).size !== specialtiesNames.length
 
-    if (specialtiesList.length > 0 && validSpecialties.length === 0) {
-      setError('Preencha especialidade e RQE corretamente')
+    if (hasDuplicates) {
+      setError('Não é permitido repetir especialidades')
       setSubmitting(false)
       return
     }
 
-    if (validSpecialties.length > 0) {
-      const { error: specError } = await supabase
-        .from('doctor_specialties')
-        .insert(
-          validSpecialties.map(s => ({
-            doctor_id: user.id,
-            specialty: s.specialty,
-            rqe: s.rqe
-          }))
-        )
+    const { data: existing } = await supabase
+      .from('doctor_specialties')
+      .select('*')
+      .eq('doctor_id', user.id)
 
-      if (specError) {
-        setError(specError.message)
-        setSubmitting(false)
-        return
+    for (const spec of validSpecialties) {
+      const found = existing?.find(e => e.specialty === spec.specialty)
+
+      if (!found) {
+        await supabase.from('doctor_specialties').insert({
+          doctor_id: user.id,
+          specialty: spec.specialty,
+          rqe: spec.rqe,
+          approved: false,
+          rejection_reason: null
+        })
+      } else if (found.rqe !== spec.rqe) {
+        await supabase
+          .from('doctor_specialties')
+          .update({
+            rqe: spec.rqe,
+            approved: false,
+            rejection_reason: null
+          })
+          .eq('id', found.id)
+      }
+    }
+
+    const keep = validSpecialties.map(s => s.specialty)
+
+    for (const old of existing || []) {
+      if (!keep.includes(old.specialty)) {
+        await supabase
+          .from('doctor_specialties')
+          .delete()
+          .eq('id', old.id)
       }
     }
 
@@ -197,7 +227,25 @@ export default function DoctorPage() {
     }
 
     setSuccess('Dados salvos com sucesso')
+
+    const { data: refreshed } = await supabase
+      .from('doctor_specialties')
+      .select('*')
+      .eq('doctor_id', user.id)
+
+    if (refreshed) {
+      setSpecialtiesList(
+        refreshed.map(s => ({
+          specialty: s.specialty,
+          rqe: s.rqe,
+          approved: s.approved,
+          rejection_reason: s.rejection_reason
+        }))
+      )
+    }
+
     setSubmitting(false)
+
   }
 
   return (
@@ -211,6 +259,31 @@ export default function DoctorPage() {
 
         <input placeholder='Nome' value={name} onChange={e => setName(e.target.value)} className='border p-2 rounded w-full' />
         <input placeholder='CRM' value={crm} onChange={e => setCrm(e.target.value)} className='border p-2 rounded w-full' />
+        <div className='text-sm'>
+          {!crm && (
+            <span className='text-yellow-600'>
+              Você precisa informar seu CRM
+            </span>
+          )}
+
+          {crm && !crmApproved && !crmRejectionReason && (
+            <span className='text-yellow-600'>
+              Seu CRM está em análise
+            </span>
+          )}
+
+          {crm && !crmApproved && crmRejectionReason && (
+            <span className='text-red-600'>
+              CRM recusado: {crmRejectionReason}
+            </span>
+          )}
+
+          {crm && crmApproved && (
+            <span className='text-green-600'>
+              CRM aprovado
+            </span>
+          )}
+        </div>
         <input placeholder='Telefone' value={phone} onChange={e => setPhone(e.target.value)} className='border p-2 rounded w-full' />
         <input placeholder='Documento' value={document} onChange={e => setDocument(e.target.value)} className='border p-2 rounded w-full' />
         <textarea placeholder='Sobre você' value={bio} onChange={e => setBio(e.target.value)} className='border p-2 rounded w-full' />
@@ -223,26 +296,44 @@ export default function DoctorPage() {
           </div>
 
           {specialtiesList.map((item, index) => (
-            <div key={index} className='flex gap-2'>
-              <select
-                value={item.specialty}
-                onChange={e => updateSpecialty(index, 'specialty', e.target.value)}
-                className='border p-2 rounded w-full'
-              >
-                <option value=''>Selecione</option>
-                {SPECIALTIES.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+            <div key={index} className='flex flex-col gap-1 border p-2 rounded'>
+              <div className='flex gap-2 items-center'>
+                <select
+                  value={item.specialty}
+                  onChange={e => updateSpecialty(index, 'specialty', e.target.value)}
+                  className='border p-2 rounded w-full'
+                >
+                  <option value=''>Selecione</option>
+                  {SPECIALTIES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
 
-              <input
-                placeholder='RQE'
-                value={item.rqe}
-                onChange={e => updateSpecialty(index, 'rqe', e.target.value)}
-                className='border p-2 rounded w-32'
-              />
+                <input
+                  placeholder='RQE'
+                  value={item.rqe}
+                  onChange={e => updateSpecialty(index, 'rqe', e.target.value)}
+                  className='border p-2 rounded w-32'
+                />
 
-              <button onClick={() => removeSpecialty(index)} className='text-red-600'>X</button>
+                <button
+                  onClick={() => removeSpecialty(index)}
+                  className='text-red-600 font-bold px-2'
+                >
+                  X
+                </button>
+              </div>
+              <div className='text-sm'>
+                {item.approved ? (
+                  <span className='text-green-600'>RQE aprovado</span>
+                ) : item.rejection_reason ? (
+                  <span className='text-red-600'>
+                    RQE recusado: {item.rejection_reason}
+                  </span>
+                ) : (
+                  <span className='text-yellow-600'>RQE em análise</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -270,7 +361,20 @@ export default function DoctorPage() {
             ))}
           </div>
         </div>
+        <div className='flex flex-col gap-1'>
+          <label className='text-sm text-gray-600'>
+            Raio de atuação (km)
+          </label>
 
+          <input
+            type='number'
+            min={1}
+            max={100}
+            value={radiusKm}
+            onChange={e => setRadiusKm(Number(e.target.value))}
+            className='border p-2 rounded w-full'
+          />
+        </div>
         <button
           onClick={handleSave}
           disabled={submitting || loading}

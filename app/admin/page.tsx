@@ -27,6 +27,15 @@ export default function AdminPage() {
           </Card>
         </a>
 
+        <a href='/admin/shifts'>
+          <Card className='p-6 hover:shadow-md transition cursor-pointer'>
+            <h2 className='text-lg font-semibold text-gray-900'>Plantões</h2>
+            <p className='text-sm text-gray-500'>
+              Gerenciar todos os plantões do sistema
+            </p>
+          </Card>
+        </a>
+
       </div>
     </div>
   )
