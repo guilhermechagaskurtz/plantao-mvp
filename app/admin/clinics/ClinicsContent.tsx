@@ -9,6 +9,7 @@ import Card from '@/components/ui/Card'
 import Section from '@/components/ui/Section'
 import { Table, THead, TH, TR, TD } from '@/components/ui/Table'
 import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function ClinicsContent() {
     const [loading, setLoading] = useState(true)
@@ -22,30 +23,19 @@ export default function ClinicsContent() {
     const [total, setTotal] = useState(0)
     const [search, setSearch] = useState('')
     const [searchInput, setSearchInput] = useState('')
+    const { user, profile, loading: authLoading } = useAuth()
 
     useEffect(() => {
+        if (authLoading) return
+
+        if (!user || profile?.type !== 'admin') {
+            window.location.href = '/login'
+            return
+        }
+
         const load = async () => {
             setLoading(true)
             setError('')
-
-            const { data: authData } = await supabase.auth.getUser()
-            const user = authData.user
-
-            if (!user) {
-                window.location.href = '/login'
-                return
-            }
-
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('type')
-                .eq('id', user.id)
-                .single()
-
-            if (!profile || profile.type !== 'admin') {
-                window.location.href = '/login'
-                return
-            }
 
             let query = supabase
                 .from('clinics')
@@ -73,7 +63,7 @@ export default function ClinicsContent() {
         }
 
         load()
-    }, [page, search])
+    }, [page, search, user, profile, authLoading])
 
     useEffect(() => {
         if (!saved) return
@@ -105,6 +95,10 @@ export default function ClinicsContent() {
         await supabase.from('profiles').delete().eq('id', id)
 
         setClinics(prev => prev.filter(c => c.id !== id))
+    }
+
+    if (authLoading) {
+        return <div className='text-gray-500'>Carregando...</div>
     }
 
     return (

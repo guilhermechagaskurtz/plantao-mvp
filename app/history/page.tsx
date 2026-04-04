@@ -3,84 +3,20 @@ app/history/page.tsx
 */
 'use client'
 
-import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import { useHistoryPage } from '@/hooks/useHistoryPage'
 
 export default function HistoryPage() {
-  const [shifts, setShifts] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const {
+    shifts,
+    loading,
+    error,
+    confirmPayment,
+    setError
+  } = useHistoryPage()
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending' | 'missed'>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-
-  useEffect(() => {
-    load()
-  }, [])
-
-  const load = async () => {
-    setLoading(true)
-    setError('')
-
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData.user
-
-    if (!user) {
-      setError('Não autenticado')
-      setLoading(false)
-      return
-    }
-
-    const { data, error } = await supabase
-      .from('shifts')
-      .select(`
-          id,
-          value,
-          start_time,
-          end_time,
-          paid,
-          payment_confirmed_by_doctor,
-          missed_by_clinic,
-          clinics:clinic_id (
-            name,
-            address,
-            number,
-            complement,
-            city,
-            state
-          )
-        `)
-      .eq('accepted_doctor_id', user.id)
-      .eq('status', 'accepted')
-      .order('start_time', { ascending: false })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
-
-    const now = new Date()
-
-    const past = (data || []).filter(s => new Date(s.end_time) < now)
-
-    setShifts(past)
-    setLoading(false)
-  }
-
-  const confirmPayment = async (shift: any) => {
-    const { error } = await supabase
-      .from('shifts')
-      .update({ payment_confirmed_by_doctor: true })
-      .eq('id', shift.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    load()
-  }
 
   const filteredShifts = shifts.filter(shift => {
     if (filter === 'paid' && !shift.paid) return false

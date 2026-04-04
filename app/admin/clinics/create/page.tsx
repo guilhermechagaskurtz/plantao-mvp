@@ -91,6 +91,11 @@ export default function CreateClinicPage() {
             console.error('Erro ao buscar coordenadas', err)
         }
         // clínica
+        if (!latitude || !longitude) {
+            setError('Não foi possível localizar o endereço no mapa')
+            setLoading(false)
+            return
+        }
         const { error: clinicError } = await supabase
             .from('clinics')
             .insert({
@@ -206,14 +211,14 @@ export default function CreateClinicPage() {
             />
 
             <input
-                placeholder='Cidade'
+                placeholder='Cidade' disabled
                 value={form.city}
                 onChange={e => handleChange('city', e.target.value)}
                 className='border p-2 rounded'
             />
 
             <input
-                placeholder='Estado'
+                placeholder='Estado' disabled
                 value={form.state}
                 onChange={e => handleChange('state', e.target.value)}
                 className='border p-2 rounded'

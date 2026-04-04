@@ -8,10 +8,12 @@ import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
 
 const PAGE_SIZE = 20
 
 export default function AdminShiftsPage() {
+    const { user, profile, loading: authLoading } = useAuth()
     const [shifts, setShifts] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
@@ -24,69 +26,57 @@ export default function AdminShiftsPage() {
 
     const [status, setStatus] = useState('')
 
-    const load = async () => {
-        setLoading(true)
-        setError('')
-
-        const { data: authData } = await supabase.auth.getUser()
-        const user = authData.user
-
-        if (!user) {
-            window.location.href = '/login'
-            return
-        }
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('type')
-            .eq('id', user.id)
-            .single()
-
-        if (!profile || profile.type !== 'admin') {
-            window.location.href = '/login'
-            return
-        }
-
-        let query = supabase
-            .from('shifts')
-            .select(`
-        *,
-        clinics:clinic_id (name),
-        doctors:accepted_doctor_id (name)
-      `, { count: 'exact' })
-
-        if (status) {
-            query = query.eq('status', status)
-        }
-
-        if (search) {
-            query = query.or(`
-        specialty.ilike.%${search}%,
-        city.ilike.%${search}%,
-        state.ilike.%${search}%
-      `)
-        }
-
-        query = query
-            .order('start_time', { ascending: false })
-            .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
-
-        const { data, error, count } = await query
-
-        if (error) {
-            setError(error.message)
-            setLoading(false)
-            return
-        }
-
-        setShifts(data || [])
-        setTotal(count || 0)
-        setLoading(false)
-    }
-
     useEffect(() => {
+        if (authLoading) return
+
+        if (!user || profile?.type !== 'admin') {
+            window.location.href = '/login'
+            return
+        }
+
+        const load = async () => {
+            setLoading(true)
+            setError('')
+
+            let query = supabase
+                .from('shifts')
+                .select(`
+                *,
+                clinics:clinic_id (name),
+                doctors:accepted_doctor_id (name)
+            `, { count: 'exact' })
+
+            if (status) {
+                query = query.eq('status', status)
+            }
+
+            if (search) {
+                query = query.or(`
+                specialty.ilike.%${search}%,
+                city.ilike.%${search}%,
+                state.ilike.%${search}%
+            `)
+            }
+
+            query = query
+                .order('start_time', { ascending: false })
+                .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
+
+            const { data, error, count } = await query
+
+            if (error) {
+                setError(error.message)
+                setLoading(false)
+                return
+            }
+
+            setShifts(data || [])
+            setTotal(count || 0)
+            setLoading(false)
+        }
+
         load()
-    }, [page, search, status])
+    }, [page, search, status, authLoading, user, profile])
 
     return (
         <div className='flex flex-col gap-4'>

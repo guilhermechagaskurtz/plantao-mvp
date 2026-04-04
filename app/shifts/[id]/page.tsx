@@ -5,12 +5,19 @@ import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Button from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
+import { useShiftsPage } from '@/hooks/useShiftsPage'
+import { useRouter } from 'next/navigation'
 
+import { getDistanceKm } from '@/lib/utils/distance'
 const Map = dynamic(() => import('@/components/Map'), {
     ssr: false
 })
 
 export default function ShiftDetailsPage() {
+    const router = useRouter()
+    const { crmStatus, approvedSpecialties } = useShiftsPage()
+    const { user, profile, loading: authLoading } = useAuth()
     const params = useParams()
     const id = params.id as string
 
@@ -20,8 +27,7 @@ export default function ShiftDetailsPage() {
     const [accepting, setAccepting] = useState(false)
 
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-    const [crmStatus, setCrmStatus] = useState<'ok' | 'missing' | 'pending' | 'rejected'>('ok')
-    const [approvedSpecialties, setApprovedSpecialties] = useState<string[]>([])
+    const [preferences, setPreferences] = useState<any>(null)
 
     const acceptShift = async () => {
         const confirmed = window.confirm('Deseja aceitar este plantão?')
@@ -30,9 +36,6 @@ export default function ShiftDetailsPage() {
 
         setAccepting(true)
         setError('')
-
-        const { data } = await supabase.auth.getUser()
-        const user = data.user
 
         if (!user) {
             setError('Não autenticado')
@@ -51,58 +54,48 @@ export default function ShiftDetailsPage() {
             return
         }
 
-        window.location.href = '/my-shifts'
+        router.push('/my-shifts')
     }
 
     useEffect(() => {
+        if (!user?.id) return
+
+        const loadPreferences = async () => {
+            const { data } = await supabase
+                .from('doctor_notification_preferences')
+                .select('*')
+                .eq('doctor_id', user.id)
+                .maybeSingle()
+
+            setPreferences(data)
+        }
+
+        loadPreferences()
+    }, [user?.id])
+
+    useEffect(() => {
+        if (authLoading) return
 
         const load = async () => {
-            const { data: authData } = await supabase.auth.getUser()
-            const user = authData.user
+            setLoading(true)
+            setError('')
 
             setCurrentUserId(user?.id || null)
-            if (user?.id) {
-                const { data: specialties } = await supabase
-                    .from('doctor_specialties')
-                    .select('*')
-                    .eq('doctor_id', user.id)
 
-                setApprovedSpecialties(
-                    (specialties || [])
-                        .filter(s => s.approved)
-                        .map(s => s.specialty)
-                )
-                const { data: doctor } = await supabase
-                    .from('doctors')
-                    .select('crm, crm_approved, crm_rejection_reason')
-                    .eq('id', user.id)
-                    .single()
 
-                if (!doctor?.crm) {
-                    setCrmStatus('missing')
-                } else if (!doctor?.crm_approved) {
-                    if (doctor?.crm_rejection_reason) {
-                        setCrmStatus('rejected')
-                    } else {
-                        setCrmStatus('pending')
-                    }
-                } else {
-                    setCrmStatus('ok')
-                }
-            }
             const { data, error } = await supabase
                 .from('shifts')
                 .select(`
-          *,
-          clinics:clinic_id (
-            name,
-            address,
-            number,
-            complement,
-            city,
-            state
-          )
-        `)
+                *,
+                clinics:clinic_id (
+                    name,
+                    address,
+                    number,
+                    complement,
+                    city,
+                    state
+                )
+            `)
                 .eq('id', id)
                 .single()
 
@@ -116,10 +109,8 @@ export default function ShiftDetailsPage() {
             setLoading(false)
         }
 
-
-
         load()
-    }, [id])
+    }, [id, authLoading, user])
 
     if (loading) return <div>Carregando...</div>
     if (error) return <div className='text-red-500'>{error}</div>
@@ -153,23 +144,13 @@ export default function ShiftDetailsPage() {
                 {shift.requires_rqe && (
                     <div
                         className={`text-xs ${approvedSpecialties.includes(shift.specialty)
-                                ? 'text-green-600'
-                                : 'text-red-600'
+                            ? 'text-green-600'
+                            : 'text-red-600'
                             }`}
                     >
                         {approvedSpecialties.includes(shift.specialty)
                             ? `Você possui RQE aprovado em ${shift.specialty}`
                             : `Você não possui RQE aprovado em ${shift.specialty}`}
-                    </div>
-                )}
-                {shift.requires_rqe && (
-                    <div
-                        className={`text-xs ${approvedSpecialties.includes(shift.specialty)
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                            }`}
-                    >
-                        Requer RQE aprovado em {shift.specialty}
                     </div>
                 )}
 
@@ -194,7 +175,21 @@ export default function ShiftDetailsPage() {
                     <p>
                         <b>Fim:</b> {new Date(shift.end_time).toLocaleString()}
                     </p>
+                    <p>
+                        <b>Distância:</b>{' '}
+                        {preferences?.latitude && preferences?.longitude
+                            ? Math.round(
+                                getDistanceKm(
+                                    preferences.latitude,
+                                    preferences.longitude,
+                                    shift.latitude,
+                                    shift.longitude
+                                )
+                            ) + ' km'
+                            : '-'}
+                    </p>
                 </div>
+
             </div>
             {isMine ? (
                 <Button
@@ -211,7 +206,7 @@ export default function ShiftDetailsPage() {
                             })
                             .eq('id', shift.id)
 
-                        window.location.href = '/my-shifts'
+                        router.push('/my-shifts')
                     }}
                 >
                     Cancelar plantão
@@ -232,11 +227,14 @@ export default function ShiftDetailsPage() {
                 shifts={[shift]}
                 selectedShiftId={shift.id}
                 onSelect={() => { }}
+                centerLat={preferences?.latitude}
+                centerLng={preferences?.longitude}
+                radiusKm={preferences?.radius_km}
             />
 
             <Button
                 onClick={() => {
-                    window.location.href = '/shifts'
+                    router.push('/shifts')
                 }}
                 variant='secondary'
             >

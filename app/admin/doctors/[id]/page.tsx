@@ -7,8 +7,10 @@ import { supabase } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { SPECIALTIES } from '@/lib/specialties'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function AdminDoctorEditPage() {
+    const { user, profile, loading: authLoading } = useAuth()
     const params = useParams()
     const id = Array.isArray(params.id) ? params.id[0] : params.id
     const router = useRouter()
@@ -54,34 +56,28 @@ export default function AdminDoctorEditPage() {
     }
 
     useEffect(() => {
+        if (authLoading) return
+
+        if (!user || profile?.type !== 'admin') {
+            window.location.href = '/login'
+            return
+        }
+
         const load = async () => {
             setLoading(true)
             setError('')
 
-            const { data: authData } = await supabase.auth.getUser()
-            const user = authData.user
-
-            if (!user) {
-                window.location.href = '/login'
-                return
-            }
-
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('type')
-                .eq('id', user.id)
-                .single()
-
-            if (!profile || profile.type !== 'admin') {
-                window.location.href = '/login'
-                return
-            }
-
-            const { data: doctor } = await supabase
+            const { data: doctor, error: doctorError } = await supabase
                 .from('doctors')
                 .select('*')
                 .eq('id', id)
                 .single()
+
+            if (doctorError) {
+                setError(doctorError.message)
+                setLoading(false)
+                return
+            }
 
             if (doctor) {
                 setCrmApproved(doctor.crm_approved ?? false)
@@ -94,10 +90,16 @@ export default function AdminDoctorEditPage() {
                 setRadiusKm(doctor.radius_km || 10)
             }
 
-            const { data: specialtiesData } = await supabase
+            const { data: specialtiesData, error: specialtiesError } = await supabase
                 .from('doctor_specialties')
                 .select('*')
                 .eq('doctor_id', id)
+
+            if (specialtiesError) {
+                setError(specialtiesError.message)
+                setLoading(false)
+                return
+            }
 
             if (specialtiesData) {
                 setSpecialtiesList(
@@ -111,10 +113,16 @@ export default function AdminDoctorEditPage() {
                 )
             }
 
-            const { data: interestsData } = await supabase
+            const { data: interestsData, error: interestsError } = await supabase
                 .from('doctor_interests')
                 .select('*')
                 .eq('doctor_id', id)
+
+            if (interestsError) {
+                setError(interestsError.message)
+                setLoading(false)
+                return
+            }
 
             if (interestsData) {
                 setInterests(interestsData.map(i => i.specialty))
@@ -124,7 +132,7 @@ export default function AdminDoctorEditPage() {
         }
 
         load()
-    }, [id])
+    }, [id, authLoading, user, profile])
 
     const handleSave = async () => {
         setError('')
@@ -158,11 +166,6 @@ export default function AdminDoctorEditPage() {
             return
         }
 
-        await supabase
-            .from('doctor_specialties')
-            .delete()
-            .eq('doctor_id', id)
-
         const validSpecialties = specialtiesList.filter(
             s => s.specialty && s.rqe
         )
@@ -173,41 +176,127 @@ export default function AdminDoctorEditPage() {
             return
         }
 
-        if (validSpecialties.length > 0) {
-            const { error: specError } = await supabase
+        // separar existentes e novos
+        const existing = validSpecialties.filter(s => s.id)
+        const news = validSpecialties.filter(s => !s.id)
+
+        // UPDATE (mantém approved / rejection_reason)
+        for (const s of existing) {
+            const { error: updateError } = await supabase
+                .from('doctor_specialties')
+                .update({
+                    specialty: s.specialty,
+                    rqe: s.rqe
+                })
+                .eq('id', s.id)
+
+            if (updateError) {
+                setError(updateError.message)
+                setSubmitting(false)
+                return
+            }
+        }
+
+        // INSERT (novos começam pendentes naturalmente)
+        if (news.length > 0) {
+            const { error: insertError } = await supabase
                 .from('doctor_specialties')
                 .insert(
-                    validSpecialties.map(s => ({
+                    news.map(s => ({
                         doctor_id: id,
                         specialty: s.specialty,
                         rqe: s.rqe
                     }))
                 )
 
-            if (specError) {
-                setError(specError.message)
+            if (insertError) {
+                setError(insertError.message)
                 setSubmitting(false)
                 return
             }
         }
 
-        await supabase
+        // DELETE seletivo (removidos pelo usuário)
+        const idsInForm = existing.map(s => s.id)
+
+        const idsInDb = specialtiesList
+            .filter(s => s.id)
+            .map(s => s.id)
+
+        const toDelete = idsInDb.filter(dbId => !idsInForm.includes(dbId))
+
+        if (toDelete.length > 0) {
+            const { error: deleteError } = await supabase
+                .from('doctor_specialties')
+                .delete()
+                .in('id', toDelete)
+
+            if (deleteError) {
+                setError(deleteError.message)
+                setSubmitting(false)
+                return
+            }
+        }
+
+        const { error: deleteInterestsError } = await supabase
             .from('doctor_interests')
             .delete()
             .eq('doctor_id', id)
 
-        if (interests.length > 0) {
-            const { error: intError } = await supabase
+        if (deleteInterestsError) {
+            setError(deleteInterestsError.message)
+            setSubmitting(false)
+            return
+        }
+
+        // pegar interesses atuais do banco
+        const { data: existingInterests, error: fetchInterestsError } = await supabase
+            .from('doctor_interests')
+            .select('id, specialty')
+            .eq('doctor_id', id)
+
+        if (fetchInterestsError) {
+            setError(fetchInterestsError.message)
+            setSubmitting(false)
+            return
+        }
+
+        const existingSet = new Set((existingInterests || []).map(i => i.specialty))
+        const newSet = new Set(interests)
+
+        // INSERT novos
+        const toInsert = interests.filter(i => !existingSet.has(i))
+
+        if (toInsert.length > 0) {
+            const { error: insertError } = await supabase
                 .from('doctor_interests')
                 .insert(
-                    interests.map(i => ({
+                    toInsert.map(i => ({
                         doctor_id: id,
                         specialty: i
                     }))
                 )
 
-            if (intError) {
-                setError(intError.message)
+            if (insertError) {
+                setError(insertError.message)
+                setSubmitting(false)
+                return
+            }
+        }
+
+        // DELETE removidos
+        const interestIdsToDelete = (existingInterests || [])
+            .filter(i => !newSet.has(i.specialty))
+            .map(i => i.id)
+
+        if (interestIdsToDelete.length > 0) {
+            const { error: deleteError } = await supabase
+                .from('doctor_interests')
+                .delete()
+                .in('id', interestIdsToDelete)
+
+            if (deleteError) {
+                setError(deleteError.message)
                 setSubmitting(false)
                 return
             }
@@ -217,7 +306,7 @@ export default function AdminDoctorEditPage() {
         setSubmitting(false)
 
         setTimeout(() => {
-            router.push('/admin/doctors')
+            router.replace(`/admin/doctors/${id}`)
         }, 1000)
     }
 

@@ -1,17 +1,19 @@
+//components/ui/Input.tsx
 type Props = {
     value: string
     onChange: (v: string) => void
     placeholder?: string
     type?: string
     className?: string
-}
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type' | 'className' | 'placeholder'>
 
 export default function Input({
     value,
     onChange,
     placeholder,
     type = 'text',
-    className = ''
+    className = '',
+    ...props
 }: Props) {
     return (
         <input
@@ -20,6 +22,7 @@ export default function Input({
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             className={`border border-gray-300 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none px-3 py-2 rounded w-full ${className}`}
+            {...props}
         />
     )
 }

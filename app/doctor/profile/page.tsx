@@ -3,11 +3,14 @@ app/doctor/profile/page.tsx
 */
 'use client'
 
+import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { SPECIALTIES } from '@/lib/specialties'
+import { getDoctorById, getDoctorSpecialties, getDoctorInterests } from '@/lib/services/doctor'
 
 export default function DoctorPage() {
+  const { user, loading: authLoading } = useAuth()
   const [name, setName] = useState('')
   const [crm, setCrm] = useState('')
   const [phone, setPhone] = useState('')
@@ -17,7 +20,6 @@ export default function DoctorPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [radiusKm, setRadiusKm] = useState(10)
   const [crmApproved, setCrmApproved] = useState(false)
   const [crmRejectionReason, setCrmRejectionReason] = useState('')
 
@@ -48,12 +50,11 @@ export default function DoctorPage() {
   }
 
   useEffect(() => {
+    if (authLoading) return
+
     const load = async () => {
       setLoading(true)
       setError('')
-
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
 
       if (!user) {
         setError('Usuário não autenticado')
@@ -61,11 +62,7 @@ export default function DoctorPage() {
         return
       }
 
-      const { data: doctor } = await supabase
-        .from('doctors')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+      const { data: doctor } = await getDoctorById(user.id)
 
       if (doctor) {
         setCrmApproved(doctor.crm_approved ?? false)
@@ -75,32 +72,22 @@ export default function DoctorPage() {
         setPhone(doctor.phone || '')
         setDocument(doctor.document || '')
         setBio(doctor.bio || '')
-        setRadiusKm(doctor.radius_km || 10)
       }
 
-      const loadSpecialties = async (userId: string) => {
-        const { data: specialtiesData } = await supabase
-          .from('doctor_specialties')
-          .select('*')
-          .eq('doctor_id', userId)
+      const { data: specialtiesData } = await getDoctorSpecialties(user.id)
 
-        if (specialtiesData) {
-          setSpecialtiesList(
-            specialtiesData.map(s => ({
-              specialty: s.specialty,
-              rqe: s.rqe,
-              approved: s.approved,
-              rejection_reason: s.rejection_reason
-            }))
-          )
-        }
+      if (specialtiesData) {
+        setSpecialtiesList(
+          specialtiesData.map(s => ({
+            specialty: s.specialty,
+            rqe: s.rqe,
+            approved: s.approved,
+            rejection_reason: s.rejection_reason
+          }))
+        )
       }
-      await loadSpecialties(user.id)
 
-      const { data: interestsData } = await supabase
-        .from('doctor_interests')
-        .select('*')
-        .eq('doctor_id', user.id)
+      const { data: interestsData } = await getDoctorInterests(user.id)
 
       if (interestsData) {
         setInterests(interestsData.map(i => i.specialty))
@@ -110,7 +97,7 @@ export default function DoctorPage() {
     }
 
     load()
-  }, [])
+  }, [authLoading, user])
 
   const handleSave = async () => {
     setError('')
@@ -128,9 +115,6 @@ export default function DoctorPage() {
 
     setSubmitting(true)
 
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData.user
-
     if (!user) {
       setError('Usuário não autenticado')
       setSubmitting(false)
@@ -143,8 +127,7 @@ export default function DoctorPage() {
       crm,
       phone,
       document,
-      bio,
-      radius_km: radiusKm
+      bio
     })
 
     if (error) {
@@ -360,20 +343,6 @@ export default function DoctorPage() {
               </label>
             ))}
           </div>
-        </div>
-        <div className='flex flex-col gap-1'>
-          <label className='text-sm text-gray-600'>
-            Raio de atuação (km)
-          </label>
-
-          <input
-            type='number'
-            min={1}
-            max={100}
-            value={radiusKm}
-            onChange={e => setRadiusKm(Number(e.target.value))}
-            className='border p-2 rounded w-full'
-          />
         </div>
         <button
           onClick={handleSave}

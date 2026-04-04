@@ -6,8 +6,10 @@ app/clinic/page.tsx
 import { supabase } from '@/lib/supabase'
 import { useState } from 'react'
 import { useEffect } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function ClinicPage() {
+  const { user, profile, loading: authLoading } = useAuth()
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -16,18 +18,16 @@ export default function ClinicPage() {
   const [stats, setStats] = useState({ open: 0, accepted: 0 })
 
   useEffect(() => {
+    if (authLoading) return
+
+    if (!user || profile?.type !== 'clinic') {
+      window.location.href = '/login'
+      return
+    }
+
     const load = async () => {
       setLoading(true)
       setError('')
-
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
-
-      if (!user) {
-        setError('Usuário não autenticado')
-        setLoading(false)
-        return
-      }
 
       const { data: clinic } = await supabase
         .from('clinics')
@@ -55,7 +55,8 @@ export default function ClinicPage() {
     }
 
     load()
-  }, [])
+  }, [authLoading, user, profile])
+
   const handleSave = async () => {
     setError('')
     setSuccess('')
@@ -66,9 +67,6 @@ export default function ClinicPage() {
     }
 
     setSubmitting(true)
-
-    const { data } = await supabase.auth.getUser()
-    const user = data.user
 
     if (!user) {
       setError('Não autenticado')

@@ -3,6 +3,7 @@ admin/shifts/[id]/page.tsx
 */
 'use client'
 
+import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -10,6 +11,7 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 
 export default function AdminShiftEditPage() {
+    const { user, profile, loading: authLoading } = useAuth()
     const params = useParams()
     const id = Array.isArray(params.id) ? params.id[0] : params.id
     const router = useRouter()
@@ -45,61 +47,50 @@ export default function AdminShiftEditPage() {
         setForm((prev: any) => ({ ...prev, [key]: value }))
     }
 
-    const load = async () => {
-        setLoading(true)
-
-        const { data: authData } = await supabase.auth.getUser()
-        const user = authData.user
-
-        if (!user) {
-            window.location.href = '/login'
-            return
-        }
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('type')
-            .eq('id', user.id)
-            .single()
-
-        if (!profile || profile.type !== 'admin') {
-            window.location.href = '/login'
-            return
-        }
-
-        const { data: shift } = await supabase
-            .from('shifts')
-            .select('*')
-            .eq('id', id)
-            .single()
-
-        if (shift) {
-            setForm({
-                ...shift,
-                start_time: shift.start_time?.slice(0, 16),
-                end_time: shift.end_time?.slice(0, 16)
-            })
-        }
-
-        const { data: clinicsData } = await supabase
-            .from('clinics')
-            .select('id, name')
-            .order('name')
-
-        const { data: doctorsData } = await supabase
-            .from('doctors')
-            .select('id, name')
-            .order('name')
-
-        setClinics(clinicsData || [])
-        setDoctors(doctorsData || [])
-
-        setLoading(false)
-    }
 
     useEffect(() => {
+        if (authLoading) return
+
+        if (!user || profile?.type !== 'admin') {
+            window.location.href = '/login'
+            return
+        }
+
+        const load = async () => {
+            setLoading(true)
+
+            const { data: shift } = await supabase
+                .from('shifts')
+                .select('*')
+                .eq('id', id)
+                .single()
+
+            if (shift) {
+                setForm({
+                    ...shift,
+                    start_time: shift.start_time?.slice(0, 16),
+                    end_time: shift.end_time?.slice(0, 16)
+                })
+            }
+
+            const { data: clinicsData } = await supabase
+                .from('clinics')
+                .select('id, name')
+                .order('name')
+
+            const { data: doctorsData } = await supabase
+                .from('doctors')
+                .select('id, name')
+                .order('name')
+
+            setClinics(clinicsData || [])
+            setDoctors(doctorsData || [])
+
+            setLoading(false)
+        }
+
         load()
-    }, [id])
+    }, [id, authLoading, user, profile])
 
     const handleSave = async () => {
         setSaving(true)

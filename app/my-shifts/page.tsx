@@ -3,120 +3,20 @@ app/my-shifts/page.tsx
 */
 'use client'
 
-import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import { useMyShiftsPage } from '@/hooks/useMyShiftsPage'
 
 export default function MyShiftsPage() {
-  const [shifts, setShifts] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [doctor, setDoctor] = useState<any>(null)
+  const {
+    shifts,
+    loading,
+    error,
+    doctor,
+    cancelShift,
+    finishShift,
+    setError
+  } = useMyShiftsPage()
   const [filter, setFilter] = useState<'all' | 'future' | 'ongoing' | 'past'>('all')
-
-  useEffect(() => {
-    load()
-  }, [])
-
-  const load = async () => {
-    setLoading(true)
-    setError('')
-
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData.user
-
-    if (!user) {
-      setError('Não autenticado')
-      setLoading(false)
-      return
-    }
-
-    const { data: doctor } = await supabase
-      .from('doctors')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    if (!doctor) {
-      setError('Perfil não encontrado')
-      setLoading(false)
-      return
-    }
-
-    setDoctor(doctor)
-
-    const { data, error } = await supabase
-      .from('shifts')
-      .select(`
-        *,
-        clinics:clinic_id (
-          name,
-          address,
-          number,
-          complement,
-          city,
-          state
-        )
-      `)
-      .eq('accepted_doctor_id', user.id)
-      .eq('status', 'accepted')
-      .order('start_time', { ascending: true })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
-
-    const now = new Date()
-
-    const filtered = (data || []).filter(s => {
-      const end = new Date(s.end_time)
-
-      // mostra:
-      // - plantões futuros
-      // - OU já iniciados mas ainda não finalizados pelo médico
-      return end > now || !s.finished_by_doctor
-    })
-
-    setShifts(filtered)
-    setLoading(false)
-  }
-
-  const cancelShift = async (shift: any) => {
-    const { error } = await supabase
-      .from('shifts')
-      .update({
-        status: 'open',
-        accepted_doctor_id: null
-      })
-      .eq('id', shift.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    load()
-  }
-
-  const finishShift = async (shift: any) => {
-    if (shift.missed_by_clinic) {
-      setError('Este plantão foi marcado como falta pela clínica')
-      return
-    }
-
-    const { error } = await supabase
-      .from('shifts')
-      .update({ finished_by_doctor: true })
-      .eq('id', shift.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    load()
-  }
 
   const filteredShifts = shifts.filter(shift => {
     const now = new Date()

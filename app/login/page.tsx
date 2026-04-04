@@ -2,19 +2,21 @@
 app/login/page.tsx
 */
 'use client'
+
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { useState } from 'react'
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function Login() {
   const router = useRouter()
+  const { user, profile, loading: authLoading } = useAuth()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [type, setType] = useState<'doctor'>('doctor')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -22,43 +24,30 @@ export default function Login() {
   const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
+    if (authLoading) return
 
-      if (!user) {
-        setCheckingSession(false)
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('type, approval_status')
-        .eq('id', user.id)
-        .single()
-
-      if (!profile) {
-        setCheckingSession(false)
-        return
-      }
-
-      if (profile.type === 'doctor') {
-        if (profile.approval_status !== 'approved') {
-          await supabase.auth.signOut()
-          setCheckingSession(false)
-          return
-        }
-
-        router.replace('/doctor')
-      } else if (profile.type === 'clinic') {
-        router.replace('/clinic/shifts')
-      } else if (profile.type === 'admin') {
-        router.replace('/admin')
-      }
+    if (!user || !profile) {
+      setCheckingSession(false)
+      return
     }
 
-    checkSession()
-  }, [router])
+    if (profile.type === 'doctor') {
+      router.replace('/shifts')
+      return
+    }
+
+    if (profile.type === 'clinic') {
+      router.replace('/clinic/shifts')
+      return
+    }
+
+    if (profile.type === 'admin') {
+      router.replace('/admin')
+      return
+    }
+
+    setCheckingSession(false)
+  }, [user, profile, authLoading, router])
 
   const handleRegister = async () => {
     setError('')
@@ -77,6 +66,7 @@ export default function Login() {
     }
 
     const user = data.user
+
     if (!user) {
       setError('Erro ao criar usuário')
       setLoading(false)
@@ -85,8 +75,7 @@ export default function Login() {
 
     const { error: profileError } = await supabase.from('profiles').insert({
       id: user.id,
-      type: 'doctor',
-      approval_status: 'pending'
+      type: 'doctor'
     })
 
     if (profileError) {
@@ -137,19 +126,6 @@ export default function Login() {
     }
 
     if (profile.type === 'doctor') {
-      if (profile.approval_status !== 'approved') {
-        await supabase.auth.signOut()
-
-        if (profile.approval_status === 'rejected') {
-          setError('Seu cadastro foi reprovado')
-        } else {
-          setError('Seu cadastro está aguardando aprovação')
-        }
-
-        setLoading(false)
-        return
-      }
-
       router.push('/shifts')
     } else if (profile.type === 'clinic') {
       router.push('/clinic/shifts')
@@ -166,11 +142,8 @@ export default function Login() {
 
   return (
     <div className='min-h-[70vh] flex items-center justify-center'>
-
       <Card className='w-full max-w-md'>
-
         <div className='flex flex-col gap-4'>
-
           <div className='text-center'>
             <h1 className='text-xl font-semibold text-gray-900'>
               Acessar sistema
@@ -196,6 +169,11 @@ export default function Login() {
             value={email}
             onChange={setEmail}
             placeholder='Email'
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === 'Enter') {
+                mode === 'login' ? handleLogin() : handleRegister()
+              }
+            }}
           />
 
           <Input
@@ -203,14 +181,16 @@ export default function Login() {
             value={password}
             onChange={setPassword}
             placeholder='Senha'
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === 'Enter') {
+                mode === 'login' ? handleLogin() : handleRegister()
+              }
+            }}
           />
 
           {mode === 'login' ? (
             <>
-              <Button
-                onClick={handleLogin}
-                disabled={loading}
-              >
+              <Button onClick={handleLogin} disabled={loading}>
                 {loading ? 'Entrando...' : 'Entrar'}
               </Button>
 
@@ -227,10 +207,7 @@ export default function Login() {
             </>
           ) : (
             <>
-              <Button
-                onClick={handleRegister}
-                disabled={loading}
-              >
+              <Button onClick={handleRegister} disabled={loading}>
                 {loading ? 'Criando...' : 'Registrar'}
               </Button>
 
@@ -246,11 +223,8 @@ export default function Login() {
               </button>
             </>
           )}
-
         </div>
-
       </Card>
-
     </div>
   )
 }

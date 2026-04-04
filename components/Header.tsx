@@ -6,41 +6,41 @@ components/Header.tsx
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { usePathname } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
+import { getUnreadNotificationsCount } from '@/lib/services/notifications'
 
 export default function Header() {
-  const [type, setType] = useState<'doctor' | 'clinic' | 'admin' | null>(null)
   const pathname = usePathname()
+  const { profile } = useAuth()
+  const type = profile?.type || null
   const [open, setOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
   useEffect(() => {
-    const loadProfile = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
-      if (!user) {
-        setType(null)
-        return
-      }
+    setOpen(false)
+  }, [pathname])
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('type')
-        .eq('id', user.id)
-        .single()
+  useEffect(() => {
+    if (!profile?.id || type !== 'doctor') return
 
-      if (profile) {
-        setType(profile.type)
+    let isMounted = true
+
+    const load = async () => {
+      const count = await getUnreadNotificationsCount(profile.id)
+      if (isMounted) {
+        setUnreadCount(count)
       }
     }
 
-    loadProfile()
+    load()
 
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      loadProfile()
-    })
+    const interval = setInterval(load, 5000)
 
     return () => {
-      listener.subscription.unsubscribe()
+      isMounted = false
+      clearInterval(interval)
     }
-  }, [])
+  }, [profile?.id, type])
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -54,12 +54,18 @@ export default function Header() {
           Plantões
         </div>
 
-        <button
-          className='md:hidden text-xl'
-          onClick={() => setOpen(prev => !prev)}
-        >
-          ☰
-        </button>
+        <div className='relative md:hidden'>
+          <button
+            className='text-xl'
+            onClick={() => setOpen(prev => !prev)}
+          >
+            ☰
+          </button>
+
+          {type === 'doctor' && unreadCount > 0 && (
+            <span className='absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full' />
+          )}
+        </div>
       </div>
 
       <div className='hidden md:flex gap-4 items-center'>
@@ -115,7 +121,24 @@ export default function Header() {
             >
               Perfil
             </a>
+            <a
+              href='/doctor/notifications/preferences'
+              className={`text-sm transition ${pathname === '/doctor/notifications/preferences'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Alertas
+            </a>
+            <a href='/doctor/notifications' className='relative'>
+              <span className='text-sm'>🔔</span>
 
+              {unreadCount > 0 && (
+                <span className='absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full px-1.5'>
+                  {unreadCount}
+                </span>
+              )}
+            </a>
           </>
         )}
 
@@ -174,8 +197,18 @@ export default function Header() {
             >
               Médicos
             </a>
+            <a
+              href='/admin/shifts'
+              className={`text-sm transition ${pathname === '/admin/shifts'
+                ? 'text-blue-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Plantões
+            </a>
           </>
         )}
+
 
         <button onClick={logout} className='px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm transition'>
           Sair
@@ -186,28 +219,121 @@ export default function Header() {
 
           {type === 'doctor' && (
             <>
-              <a href='/doctor' onClick={() => setOpen(false)}>Home</a>
-              <a href='/shifts' onClick={() => setOpen(false)}>Plantões</a>
-              <a href='/my-shifts' onClick={() => setOpen(false)}>Meus plantões</a>
-              <a href='/history' onClick={() => setOpen(false)}>Histórico</a>
-              <a href='/doctor/profile' onClick={() => setOpen(false)}>Perfil</a>
+              <a
+                href='/doctor'
+                onClick={() => setOpen(false)}
+                className={pathname === '/doctor' ? 'text-blue-600 font-medium' : ''}
+              >
+                Home
+              </a>
+
+              <a
+                href='/shifts'
+                onClick={() => setOpen(false)}
+                className={pathname === '/shifts' ? 'text-blue-600 font-medium' : ''}
+              >
+                Plantões
+              </a>
+
+              <a
+                href='/my-shifts'
+                onClick={() => setOpen(false)}
+                className={pathname === '/my-shifts' ? 'text-blue-600 font-medium' : ''}
+              >
+                Meus plantões
+              </a>
+
+              <a
+                href='/history'
+                onClick={() => setOpen(false)}
+                className={pathname === '/history' ? 'text-blue-600 font-medium' : ''}
+              >
+                Histórico
+              </a>
+
+              <a
+                href='/doctor/profile'
+                onClick={() => setOpen(false)}
+                className={pathname === '/doctor/profile' ? 'text-blue-600 font-medium' : ''}
+              >
+                Perfil
+              </a>
+              <a
+                href='/doctor/notifications/preferences'
+                onClick={() => setOpen(false)}
+                className={
+                  pathname === '/doctor/notifications/preferences'
+                    ? 'text-blue-600 font-medium'
+                    : ''
+                }
+              >
+                Alertas
+              </a>
+              <a
+                href='/doctor/notifications'
+                onClick={() => setOpen(false)}
+              >
+                Notificações {unreadCount > 0 && `(${unreadCount})`}
+              </a>
             </>
           )}
 
           {type === 'clinic' && (
             <>
-              <a href='/clinic/shifts' onClick={() => setOpen(false)}>Plantões</a>
-              <a href='/clinic/financial' onClick={() => setOpen(false)}>Financeiro</a>
+              <a
+                href='/clinic/shifts'
+                onClick={() => setOpen(false)}
+                className={pathname === '/clinic/shifts' ? 'text-blue-600 font-medium' : ''}
+              >
+                Plantões
+              </a>
+
+              <a
+                href='/clinic/financial'
+                onClick={() => setOpen(false)}
+                className={pathname === '/clinic/financial' ? 'text-blue-600 font-medium' : ''}
+              >
+                Financeiro
+              </a>
             </>
           )}
 
           {type === 'admin' && (
             <>
-              <a href='/admin' onClick={() => setOpen(false)}>Home</a>
-              <a href='/admin/clinics' onClick={() => setOpen(false)}>Clínicas</a>
-              <a href='/admin/doctors' onClick={() => setOpen(false)}>Médicos</a>
+              <a
+                href='/admin'
+                onClick={() => setOpen(false)}
+                className={pathname === '/admin' ? 'text-blue-600 font-medium' : ''}
+              >
+                Home
+              </a>
+
+              <a
+                href='/admin/clinics'
+                onClick={() => setOpen(false)}
+                className={pathname.startsWith('/admin/clinics') ? 'text-blue-600 font-medium' : ''}
+              >
+                Clínicas
+              </a>
+
+              <a
+                href='/admin/doctors'
+                onClick={() => setOpen(false)}
+                className={pathname === '/admin/doctors' ? 'text-blue-600 font-medium' : ''}
+              >
+                Médicos
+              </a>
+
+              <a
+                href='/admin/shifts'
+                onClick={() => setOpen(false)}
+                className={pathname === '/admin/shifts' ? 'text-blue-600 font-medium' : ''}
+              >
+                Plantões
+              </a>
             </>
           )}
+
 
           <button
             onClick={logout}

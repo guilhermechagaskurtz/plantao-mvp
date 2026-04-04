@@ -3,6 +3,7 @@ app/clinic/shifts/page.tsx
 */
 'use client'
 
+import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { useState } from 'react'
 import { useEffect } from 'react'
@@ -10,7 +11,6 @@ import { useRef } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Section from '@/components/ui/Section'
 
 const specialties = [
   'Clínico Geral',
@@ -23,6 +23,7 @@ const specialties = [
 ]
 
 export default function CreateShift() {
+  const { user, profile, loading: authLoading } = useAuth()
   const [specialty, setSpecialty] = useState('')
   const [value, setValue] = useState('')
   const [start, setStart] = useState('')
@@ -38,29 +39,16 @@ export default function CreateShift() {
   const [requiresRqe, setRequiresRqe] = useState(false)
 
   useEffect(() => {
+    if (authLoading) return
+
+    if (!user || profile?.type !== 'clinic') {
+      window.location.href = '/login'
+      return
+    }
+
     const load = async () => {
       setLoading(true)
       setError('')
-
-      const { data: authData } = await supabase.auth.getUser()
-      const user = authData.user
-
-      if (!user) {
-        setError('Usuário não autenticado')
-        setLoading(false)
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (profile?.type !== 'clinic') {
-        window.location.href = '/shifts'
-        return
-      }
 
       const { data: clinic } = await supabase
         .from('clinics')
@@ -74,13 +62,14 @@ export default function CreateShift() {
         return
       }
 
+
       setClinic(clinic)
       await loadShifts(clinic.id)
       setLoading(false)
     }
 
     load()
-  }, [])
+  }, [authLoading, user, profile])
 
   const loadShifts = async (clinicId: string) => {
     const { data, error } = await supabase
@@ -158,6 +147,10 @@ export default function CreateShift() {
       setError('Clínica não carregada')
       return
     }
+    if (!clinic.latitude || !clinic.longitude) {
+      setError('Endereço da clínica inválido')
+      return
+    }
 
     if (!specialty) {
       setError('Informe a especialidade')
@@ -184,9 +177,6 @@ export default function CreateShift() {
     }
 
     setSubmitting(true)
-
-    const { data } = await supabase.auth.getUser()
-    const user = data.user
 
     if (!user) {
       setError('Não autenticado')

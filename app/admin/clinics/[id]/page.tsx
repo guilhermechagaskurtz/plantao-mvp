@@ -6,6 +6,7 @@ app/admin/clinics/[id]/page.tsx
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
 
 type ClinicForm = {
     name: string
@@ -21,6 +22,7 @@ type ClinicForm = {
 }
 
 export default function EditClinicPage() {
+    const { user, profile, loading: authLoading } = useAuth()
     const params = useParams()
     const id = Array.isArray(params.id) ? params.id[0] : params.id
     const router = useRouter()
@@ -49,40 +51,62 @@ export default function EditClinicPage() {
     }
 
     useEffect(() => {
-        load()
-    }, [])
+        if (authLoading) return
 
-    const load = async () => {
-        const { data, error } = await supabase
-            .from('clinics')
-            .select('*')
-            .eq('id', id)
-            .single()
-
-        if (error || !data) {
-            setError('Erro ao carregar clínica')
-            setLoading(false)
+        if (!user || profile?.type !== 'admin') {
+            window.location.href = '/login'
             return
         }
 
-        setForm({
-            name: data.name || '',
-            cnpj: data.cnpj || '',
-            email: data.email || '',
-            phone: data.phone || '',
-            address: data.address || '',
-            number: data.number || '',
-            complement: data.complement || '',
-            city: data.city || '',
-            state: data.state || '',
-            zip_code: data.zip_code || ''
-        })
-        setLoading(false)
-    }
+        const load = async () => {
+            setLoading(true)
+
+            const { data, error } = await supabase
+                .from('clinics')
+                .select('*')
+                .eq('id', id)
+                .single()
+
+            if (error || !data) {
+                setError('Erro ao carregar clínica')
+                setLoading(false)
+                return
+            }
+
+            setForm({
+                name: data.name || '',
+                cnpj: data.cnpj || '',
+                email: data.email || '',
+                phone: data.phone || '',
+                address: data.address || '',
+                number: data.number || '',
+                complement: data.complement || '',
+                city: data.city || '',
+                state: data.state || '',
+                zip_code: data.zip_code || ''
+            })
+
+            setLoading(false)
+        }
+
+        load()
+    }, [id, authLoading, user, profile])
+
 
     const handleSave = async () => {
         setError('')
         setSuccess('')
+
+        if (
+            !form.address ||
+            !form.number ||
+            !form.city ||
+            !form.state
+        ) {
+            setError('Preencha todos os dados obrigatórios de endereço')
+            setSaving(false)
+            return
+        }
 
         setSaving(true)
 
@@ -103,6 +127,12 @@ export default function EditClinicPage() {
             }
         } catch (err) {
             console.error('Erro ao buscar coordenadas', err)
+        }
+
+        if (!latitude || !longitude) {
+            setError('Não foi possível localizar o endereço no mapa')
+            setSaving(false)
+            return
         }
         const { error } = await supabase
             .from('clinics')
@@ -180,8 +210,8 @@ export default function EditClinicPage() {
             <input value={form.address} onChange={e => handleChange('address', e.target.value)} placeholder='Endereço' className='border p-2' />
             <input value={form.number} onChange={e => handleChange('number', e.target.value)} placeholder='Número' className='border p-2' />
             <input value={form.complement} onChange={e => handleChange('complement', e.target.value)} placeholder='Complemento' className='border p-2' />
-            <input value={form.city} onChange={e => handleChange('city', e.target.value)} placeholder='Cidade' className='border p-2' />
-            <input value={form.state} onChange={e => handleChange('state', e.target.value)} placeholder='Estado' className='border p-2' />
+            <input value={form.city} disabled className='border p-2 bg-gray-100' />
+            <input value={form.state} disabled className='border p-2 bg-gray-100' />
 
             <button
                 onClick={handleSave}

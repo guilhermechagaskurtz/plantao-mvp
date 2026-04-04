@@ -1,5 +1,7 @@
+//app/doctor.page.tsx
 'use client'
 
+import { useAuth } from '@/hooks/useAuth'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -18,6 +20,8 @@ function getLocalDateKey(date: Date) {
 }
 
 export default function DoctorDashboard() {
+    const { user, profile, loading: authLoading } = useAuth()
+
     const [acceptedShifts, setAcceptedShifts] = useState<ShiftItem[]>([])
     const [availableShifts, setAvailableShifts] = useState<ShiftItem[]>([])
     const [loading, setLoading] = useState(true)
@@ -27,10 +31,15 @@ export default function DoctorDashboard() {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
     useEffect(() => {
+        if (authLoading) return
+
+        if (!user || profile?.type !== 'doctor') {
+            window.location.href = '/login'
+            return
+        }
+
         const load = async () => {
-            const { data } = await supabase.auth.getUser()
-            const user = data.user
-            if (!user) return
+            setLoading(true)
 
             const now = new Date().toISOString()
 
@@ -53,16 +62,15 @@ export default function DoctorDashboard() {
         }
 
         load()
-    }, [])
+    }, [authLoading, user, profile])
 
     const allItems = useMemo(() => {
-        const accepted = acceptedShifts.map(s => ({ ...s, kind: 'accepted' }))
+        const accepted = acceptedShifts.map(s => ({ ...s, kind: 'accepted' as const }))
         const open = showAvailable
-            ? availableShifts.map(s => ({ ...s, kind: 'open' }))
+            ? availableShifts.map(s => ({ ...s, kind: 'open' as const }))
             : []
 
         return [...accepted, ...open].sort((a, b) => {
-            // prioridade: accepted primeiro
             if (a.kind !== b.kind) {
                 return a.kind === 'accepted' ? -1 : 1
             }
@@ -72,7 +80,7 @@ export default function DoctorDashboard() {
     }, [acceptedShifts, availableShifts, showAvailable])
 
     const grouped = useMemo(() => {
-        const map: any = {}
+        const map: Record<string, Array<ShiftItem & { kind: 'accepted' | 'open' }>> = {}
 
         allItems.forEach(item => {
             const key = getLocalDateKey(new Date(item.start_time))
@@ -83,9 +91,10 @@ export default function DoctorDashboard() {
         return map
     }, [allItems])
 
-    if (loading) return <div className='p-6'>Carregando...</div>
+    if (authLoading || loading) {
+        return <div className='p-6'>Carregando...</div>
+    }
 
-    // MOBILE (lista)
     if (isMobile) {
         return (
             <div className='p-4 flex flex-col gap-4'>
@@ -100,19 +109,19 @@ export default function DoctorDashboard() {
                     Mostrar disponíveis
                 </label>
 
-                {Object.entries(grouped).map(([date, items]: any) => (
+                {Object.entries(grouped).map(([date, items]) => (
                     <div key={date} className='flex flex-col gap-2'>
                         <div className='font-semibold'>
                             {new Date(date).toLocaleDateString()}
                         </div>
 
-                        {items.map((item: any) => (
+                        {items.map(item => (
                             <div
                                 key={item.id}
-                                onClick={() => (window.location.href = `/shifts/${item.id}`)}
-                                className={`p-3 rounded border cursor-pointer ${item.kind === 'accepted'
-                                    ? 'bg-blue-100'
-                                    : 'bg-gray-100'
+                                onClick={() => {
+                                    window.location.href = `/shifts/${item.id}`
+                                }}
+                                className={`p-3 rounded border cursor-pointer ${item.kind === 'accepted' ? 'bg-blue-100' : 'bg-gray-100'
                                     }`}
                             >
                                 {new Date(item.start_time).toLocaleTimeString([], {
@@ -128,7 +137,6 @@ export default function DoctorDashboard() {
         )
     }
 
-    // DESKTOP (calendário)
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
 
@@ -138,7 +146,7 @@ export default function DoctorDashboard() {
     const cells = []
 
     for (let i = 0; i < firstDay; i++) {
-        cells.push(<div key={'empty-' + i} />)
+        cells.push(<div key={`empty-${i}`} />)
     }
 
     for (let d = 1; d <= days; d++) {
@@ -152,13 +160,13 @@ export default function DoctorDashboard() {
             <div key={d} className='border p-2 min-h-[120px] rounded'>
                 <div className='text-sm font-semibold'>{d}</div>
 
-                {visibleItems.map((item: any) => (
+                {visibleItems.map(item => (
                     <div
                         key={item.id}
-                        onClick={() => (window.location.href = `/shifts/${item.id}`)}
-                        className={`text-xs mt-1 px-1 rounded cursor-pointer ${item.kind === 'accepted'
-                            ? 'bg-blue-200'
-                            : 'bg-gray-200'
+                        onClick={() => {
+                            window.location.href = `/shifts/${item.id}`
+                        }}
+                        className={`text-xs mt-1 px-1 rounded cursor-pointer ${item.kind === 'accepted' ? 'bg-blue-200' : 'bg-gray-200'
                             }`}
                     >
                         {new Date(item.start_time).toLocaleTimeString([], {
@@ -168,6 +176,7 @@ export default function DoctorDashboard() {
                         {item.specialty}
                     </div>
                 ))}
+
                 {hiddenCount > 0 && (
                     <div className='text-xs mt-1 text-gray-500'>
                         +{hiddenCount} mais

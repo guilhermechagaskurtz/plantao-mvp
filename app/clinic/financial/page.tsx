@@ -1,8 +1,12 @@
 /*
 app/clinic/financial/page.tsx
 */
+/*
+app/clinic/financial/page.tsx
+*/
 'use client'
 
+import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
@@ -10,24 +14,30 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
 export default function FinancialPage() {
+  const { user, profile, loading: authLoading } = useAuth()
+
   const [shifts, setShifts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [total, setTotal] = useState(0)
+
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [doctorId, setDoctorId] = useState('')
+
   const [doctors, setDoctors] = useState<any[]>([])
   const [doctorSearch, setDoctorSearch] = useState('')
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null)
+
   const [actionLoading, setActionLoading] = useState(false)
 
-
-  useEffect(() => {
-    load()
-  }, [])
-
   const load = async () => {
+    if (authLoading) return
+
+    if (!user || profile?.type !== 'clinic') {
+      window.location.href = '/login'
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -39,29 +49,19 @@ export default function FinancialPage() {
       setDoctors(doctorsData)
     }
 
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData.user
-
-    if (!user) {
-      setError('Não autenticado')
-      setLoading(false)
-      return
-    }
-
-
     let query = supabase
       .from('shifts')
       .select(`
-    id,
-    value,
-    paid,
-    start_time,
-    finished_by_doctor,
-    missed_by_clinic,
-    doctors:accepted_doctor_id (
-      name
-    )
-  `)
+        id,
+        value,
+        paid,
+        start_time,
+        finished_by_doctor,
+        missed_by_clinic,
+        doctors:accepted_doctor_id (
+          name
+        )
+      `)
       .eq('clinic_id', user.id)
       .eq('status', 'accepted')
       .order('start_time', { ascending: false })
@@ -93,6 +93,10 @@ export default function FinancialPage() {
 
     setLoading(false)
   }
+
+  useEffect(() => {
+    load()
+  }, [authLoading, user, profile])
 
   const togglePaid = async (id: string, current: boolean) => {
     setActionLoading(true)
@@ -142,6 +146,10 @@ export default function FinancialPage() {
     await load()
   }
 
+  if (authLoading) {
+    return <div>Carregando...</div>
+  }
+
   return (
     <div className='flex flex-col gap-4'>
       {error && <div className='text-red-500'>{error}</div>}
@@ -152,13 +160,11 @@ export default function FinancialPage() {
         <>
           <Card>
             <div className='flex flex-col gap-4'>
-
               <div className='text-lg font-semibold text-gray-900'>
                 Filtros
               </div>
 
               <div className='flex flex-col lg:flex-row gap-3'>
-
                 <div className='relative w-full lg:w-64'>
                   <Input
                     value={doctorSearch}
@@ -206,11 +212,10 @@ export default function FinancialPage() {
                 <Button onClick={load}>
                   Filtrar
                 </Button>
-
               </div>
-
             </div>
           </Card>
+
           <Card>
             <div className='flex flex-col'>
               <span className='text-sm text-gray-500'>
@@ -233,11 +238,10 @@ export default function FinancialPage() {
                   {shift.doctors?.name || 'Sem médico'}
                 </div>
 
-                <span className={`text-xs font-medium px-2 py-1 rounded 
-      ${shift.paid
+                <span className={`text-xs font-medium px-2 py-1 rounded ${shift.paid
                     ? 'bg-green-100 text-green-700'
-                    : 'bg-red-100 text-red-700'}
-    `}>
+                    : 'bg-red-100 text-red-700'
+                  }`}>
                   {shift.paid ? 'Pago' : 'Não pago'}
                 </span>
               </div>

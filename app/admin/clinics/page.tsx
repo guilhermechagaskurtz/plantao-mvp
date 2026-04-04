@@ -1,3 +1,4 @@
+//admin/clinics/page.tsx
 import { Suspense } from 'react'
 import ClinicsContent from './ClinicsContent'
 
