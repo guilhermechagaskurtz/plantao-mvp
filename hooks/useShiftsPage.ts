@@ -5,22 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { getOpenShifts } from '@/lib/services/shift'
-
-function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLon = (lon2 - lon1) * Math.PI / 180
-
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) *
-        Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2)
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-    return R * c
-}
+import { getDistanceKm } from '@/lib/utils/distance'
 
 export function useShiftsPage() {
     const { user } = useAuth()
@@ -47,6 +32,12 @@ export function useShiftsPage() {
                 .single()
 
             setDoctor(doctor)
+
+            const { data: preferences } = await supabase
+                .from('doctor_notification_preferences')
+                .select('latitude, longitude, radius_km')
+                .eq('doctor_id', user.id)
+                .maybeSingle()
 
             const { data: specialties } = await supabase
                 .from('doctor_specialties')
@@ -80,29 +71,31 @@ export function useShiftsPage() {
             }
 
             const filtered = (data || []).filter(shift => {
-                if (!doctor?.latitude || !doctor?.longitude) return true
+                if (!preferences?.latitude || !preferences?.longitude) return true
 
                 const dist = getDistanceKm(
-                    doctor.latitude,
-                    doctor.longitude,
+                    preferences.latitude,
+                    preferences.longitude,
                     shift.latitude,
                     shift.longitude
                 )
 
-                return dist <= (doctor.radius_km || 10)
+                return dist <= (preferences.radius_km || 10)
             })
 
             const sorted = filtered.sort((a, b) => {
+                if (!preferences?.latitude || !preferences?.longitude) return 0
+
                 const distA = getDistanceKm(
-                    doctor?.latitude,
-                    doctor?.longitude,
+                    preferences.latitude,
+                    preferences.longitude,
                     a.latitude,
                     a.longitude
                 )
 
                 const distB = getDistanceKm(
-                    doctor?.latitude,
-                    doctor?.longitude,
+                    preferences.latitude,
+                    preferences.longitude,
                     b.latitude,
                     b.longitude
                 )

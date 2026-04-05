@@ -2,9 +2,9 @@
 import { supabase } from '@/lib/supabase'
 
 export async function getOpenShifts() {
-    return supabase
-        .from('shifts')
-        .select(`
+  return supabase
+    .from('shifts')
+    .select(`
       *,
       clinics:clinic_id (
         name,
@@ -15,14 +15,14 @@ export async function getOpenShifts() {
         state
       )
     `)
-        .eq('status', 'open')
-        .gt('start_time', new Date().toISOString())
+    .eq('status', 'open')
+    .gt('start_time', new Date().toLocaleString('sv-SE').replace(' ', 'T'))
 }
 
 export async function getDoctorAcceptedShifts(doctorId: string) {
-    return supabase
-        .from('shifts')
-        .select(`
+  return supabase
+    .from('shifts')
+    .select(`
       *,
       clinics:clinic_id (
         name,
@@ -33,14 +33,14 @@ export async function getDoctorAcceptedShifts(doctorId: string) {
         state
       )
     `)
-        .eq('accepted_doctor_id', doctorId)
-        .eq('status', 'accepted')
+    .eq('accepted_doctor_id', doctorId)
+    .eq('status', 'accepted')
 }
 
 export async function getShiftById(id: string) {
-    return supabase
-        .from('shifts')
-        .select(`
+  return supabase
+    .from('shifts')
+    .select(`
       *,
       clinics:clinic_id (
         name,
@@ -51,6 +51,6 @@ export async function getShiftById(id: string) {
         state
       )
     `)
-        .eq('id', id)
-        .single()
+    .eq('id', id)
+    .single()
 }

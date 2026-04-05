@@ -21,7 +21,7 @@ export default function Input({
             value={value || ''}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`border border-gray-300 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none px-3 py-2 rounded w-full ${className}`}
+            className={`border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 focus:ring-offset-1 outline-none px-3 py-2 rounded w-full transition ${className}`}
             {...props}
         />
     )
