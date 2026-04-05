@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { useEffect, useState, useRef } from 'react'
 import { getDistanceKm } from '@/lib/utils/distance'
 import { useRouter } from 'next/navigation'
+import { getIsPremium } from '@/lib/services/premium'
 
 const Map = dynamic(() => import('@/components/Map'), {
   ssr: false
@@ -26,6 +27,9 @@ export default function ShiftsPage() {
   const [preferences, setPreferences] = useState<any>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const [onlyUrgent, setOnlyUrgent] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
+  const [minValueFilter, setMinValueFilter] = useState('')
+  const [maxDistanceFilter, setMaxDistanceFilter] = useState('')
   const isTyping = locationFilter !== debouncedLocation
   const router = useRouter()
   const {
@@ -65,6 +69,29 @@ export default function ShiftsPage() {
 
     loadPreferences()
   }, [doctor?.id])
+
+  useEffect(() => {
+    const loadPremium = async () => {
+      if (!doctor?.id) return
+
+      const premium = await getIsPremium(doctor.id)
+      setIsPremium(premium)
+    }
+
+    loadPremium()
+  }, [doctor?.id])
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      setIsPremium(e.detail)
+    }
+
+    window.addEventListener('premium-changed', handler)
+
+    return () => {
+      window.removeEventListener('premium-changed', handler)
+    }
+  }, [])
 
   useEffect(() => {
     if (!error && !success) return
@@ -124,7 +151,11 @@ export default function ShiftsPage() {
         <div className="flex flex-col lg:flex-row gap-6">
 
           {/* MAPA */}
-          <div className="w-full lg:w-2/5 sticky top-4 h-fit">
+          <div className="w-full lg:w-2/5 
+              h-[300px] 
+              lg:h-[calc(100vh-100px)] 
+              lg:sticky lg:top-4 
+              overflow-hidden rounded-lg border">
             <Map
               shifts={shifts}
               selectedShiftId={selectedShiftId}
@@ -144,53 +175,84 @@ export default function ShiftsPage() {
                 : 'Defina sua localização nas preferências para ver plantões próximos de você'}
             </div>
             {/* FILTROS */}
-            <label className='flex items-center gap-1 text-sm cursor-pointer'>
-              <input
-                type='checkbox'
-                checked={onlyUrgent}
-                onChange={e => setOnlyUrgent(e.target.checked)}
-              />
-              Urgentes (até 6h)
-            </label>
-            <div className='flex gap-2 flex-wrap items-center'>
-              <select
-                value={specialtyFilter}
-                onChange={e => setSpecialtyFilter(e.target.value)}
-                className={`p-2 border rounded ${specialtyFilter
-                  ? 'border-blue-600 bg-blue-50'
-                  : 'border-gray-300'
-                  }`}
-              >
-                <option value=''>Todas especialidades</option>
-                {SPECIALTIES.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+            {/* FILTROS */}
+            <div className='flex flex-col gap-3'>
 
-              <div className='relative max-w-xs w-full'>
-                <Input
-                  value={locationFilter}
-                  onChange={setLocationFilter}
-                  placeholder='Buscar por clínica, cidade ou endereço'
-                  className='pr-8'
-                />
+              {/* LINHA 1 */}
+              <div className='flex flex-wrap gap-2 items-center'>
 
-                {locationFilter && (
-                  <button
-                    onClick={() => {
-                      setLocationFilter('')
-                      setDebouncedLocation('')
-                    }}
-                    className='absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
-                  >
-                    ✕
-                  </button>
-                )}
+                <label className='flex items-center gap-1 text-sm cursor-pointer'>
+                  <input
+                    type='checkbox'
+                    checked={onlyUrgent}
+                    onChange={e => setOnlyUrgent(e.target.checked)}
+                  />
+                  Urgentes (até 6h)
+                </label>
+
+                <select
+                  value={specialtyFilter}
+                  onChange={e => setSpecialtyFilter(e.target.value)}
+                  className='p-2 border rounded text-sm bg-white'
+                >
+                  <option value=''>Todas especialidades</option>
+                  {SPECIALTIES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <div className='relative w-full sm:max-w-xs'>
+                  <Input
+                    value={locationFilter}
+                    onChange={setLocationFilter}
+                    placeholder='Buscar clínica ou cidade'
+                    className='pr-8'
+                  />
+
+                  {locationFilter && (
+                    <button
+                      onClick={() => {
+                        setLocationFilter('')
+                        setDebouncedLocation('')
+                      }}
+                      className='absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
               </div>
-              {isTyping && (
-                <span className='text-xs text-gray-400'>Filtrando...</span>
+
+              {/* LINHA PREMIUM */}
+              {isPremium && (
+                <div className='flex flex-wrap gap-2 items-center bg-yellow-50 border border-yellow-200 p-2 rounded-md'>
+
+                  <span className='text-xs text-yellow-700 font-medium'>
+                    Filtros avançados
+                  </span>
+
+                  <Input
+                    value={minValueFilter}
+                    onChange={setMinValueFilter}
+                    placeholder='Valor mín.'
+                    className='w-[120px]'
+                  />
+
+                  <Input
+                    value={maxDistanceFilter}
+                    onChange={setMaxDistanceFilter}
+                    placeholder='Distância máx'
+                    className='w-[140px]'
+                  />
+
+                </div>
               )}
+
             </div>
+            {isTyping && (
+              <span className='text-xs text-gray-400'>Filtrando...</span>
+            )}
 
             <div className="text-xs text-gray-500">
               {preferences?.latitude && preferences?.longitude
@@ -198,48 +260,127 @@ export default function ShiftsPage() {
                 : 'Ordenação padrão (defina sua localização para ver por proximidade)'}
             </div>
             {/* LISTA SCROLL */}
-            <div ref={listRef} className="flex flex-col gap-3 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
+            <div ref={listRef} className="flex flex-col gap-3 lg:max-h-[calc(100vh-200px)] lg:overflow-y-auto pr-1">
 
 
               {(() => {
-                const filteredShifts = [...shifts]
-                  .filter(shift => {
-                    if (onlyUrgent) {
-                      const start = new Date(shift.start_time).getTime()
-                      const now = Date.now()
-                      const diffHours = (start - now) / (1000 * 60 * 60)
+                const filteredBase = [...shifts].filter(shift => {
+                  if (onlyUrgent) {
+                    const start = new Date(shift.start_time).getTime()
+                    const now = Date.now()
+                    const diffHours = (start - now) / (1000 * 60 * 60)
 
-                      if (!(diffHours <= 6 && diffHours > 0)) return false
-                    }
-                    if (specialtyFilter && shift.specialty !== specialtyFilter) return false
+                    if (!(diffHours <= 6 && diffHours > 0)) return false
+                  }
 
-                    if (debouncedLocation) {
-                      const text = `${shift.clinics?.name || ''} ${shift.clinics?.address || ''} ${shift.clinics?.city || ''} ${shift.clinics?.state || ''}`.toLowerCase()
-                      if (!text.includes(debouncedLocation.toLowerCase())) return false
-                    }
+                  if (specialtyFilter && shift.specialty !== specialtyFilter) return false
 
-                    return true
-                  })
-                  .sort((a, b) => {
-                    if (!preferences?.latitude || !preferences?.longitude) return 0
+                  if (debouncedLocation) {
+                    const text = `${shift.clinics?.name || ''} ${shift.clinics?.address || ''} ${shift.clinics?.city || ''} ${shift.clinics?.state || ''}`.toLowerCase()
+                    if (!text.includes(debouncedLocation.toLowerCase())) return false
+                  }
 
-                    const distA = getDistanceKm(
+                  // filtro por valor mínimo
+                  if (minValueFilter) {
+                    const minValue = Number(minValueFilter)
+                    if (Number(shift.value) < minValue) return false
+                  }
+
+                  // filtro por distância
+                  if (maxDistanceFilter && preferences?.latitude && preferences?.longitude) {
+                    const maxDist = Number(maxDistanceFilter)
+
+                    const dist = getDistanceKm(
                       preferences.latitude,
                       preferences.longitude,
-                      a.latitude,
-                      a.longitude
+                      shift.latitude,
+                      shift.longitude
                     )
 
-                    const distB = getDistanceKm(
-                      preferences.latitude,
-                      preferences.longitude,
-                      b.latitude,
-                      b.longitude
-                    )
+                    if (dist > maxDist) return false
+                  }
+                  return true
+                })
 
+                const values = filteredBase.map(s => Number(s.value))
+                const distances =
+                  preferences?.latitude && preferences?.longitude
+                    ? filteredBase.map(s =>
+                      getDistanceKm(
+                        preferences.latitude,
+                        preferences.longitude,
+                        s.latitude,
+                        s.longitude
+                      )
+                    )
+                    : []
+
+                const minValue = values.length ? Math.min(...values) : 0
+                const maxValue = values.length ? Math.max(...values) : 0
+                const minDist = distances.length ? Math.min(...distances) : 0
+                const maxDist = distances.length ? Math.max(...distances) : 0
+
+                const getPremiumScore = (shift: any) => {
+                  if (!preferences?.latitude || !preferences?.longitude) return 0
+
+                  const value = Number(shift.value)
+
+                  const dist = getDistanceKm(
+                    preferences.latitude,
+                    preferences.longitude,
+                    shift.latitude,
+                    shift.longitude
+                  )
+
+                  const valueScore =
+                    maxValue === minValue
+                      ? 1
+                      : (value - minValue) / (maxValue - minValue)
+
+                  const distScore =
+                    maxDist === minDist
+                      ? 1
+                      : 1 - (dist - minDist) / (maxDist - minDist)
+
+                  const start = new Date(shift.start_time).getTime()
+                  const now = Date.now()
+                  const diffHours = (start - now) / (1000 * 60 * 60)
+
+                  const urgencyScore = diffHours > 0 && diffHours <= 6 ? 1 : 0
+
+                  return valueScore * 0.5 + distScore * 0.3 + urgencyScore * 0.2
+                }
+
+                const filteredShifts = filteredBase.sort((a, b) => {
+                  if (!preferences?.latitude || !preferences?.longitude) return 0
+
+                  const distA = getDistanceKm(
+                    preferences.latitude,
+                    preferences.longitude,
+                    a.latitude,
+                    a.longitude
+                  )
+
+                  const distB = getDistanceKm(
+                    preferences.latitude,
+                    preferences.longitude,
+                    b.latitude,
+                    b.longitude
+                  )
+
+                  if (!isPremium) {
                     return distA - distB
-                  })
+                  }
 
+                  const scoreA = getPremiumScore(a)
+                  const scoreB = getPremiumScore(b)
+
+                  return scoreB - scoreA
+                })
+
+                const topShiftIds = isPremium
+                  ? filteredShifts.slice(0, 3).map(s => s.id)
+                  : []
                 return (
                   <>
                     <div className="text-xs text-gray-500">
@@ -259,11 +400,20 @@ export default function ShiftsPage() {
                         data-id={shift.id}
                         onClick={() => setSelectedShiftId(shift.id)}
                         className={`p-4 bg-white rounded-lg cursor-pointer border transition
-          ${selectedShiftId === shift.id
+    ${selectedShiftId === shift.id
                             ? 'border-2 border-blue-600 shadow-md'
-                            : 'border-gray-200 hover:border-gray-400'}
-          `}
+                            : topShiftIds.includes(shift.id)
+                              ? 'border-2 border-yellow-400 shadow-md'
+                              : 'border-gray-200 hover:border-gray-400'}
+`}
                       >
+
+                        {topShiftIds.includes(shift.id) && (
+                          <div className='text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded mb-2 w-fit'>
+                            Destaque
+                          </div>
+                        )}
+
                         {(() => {
                           const start = new Date(shift.start_time).getTime()
                           const now = Date.now()

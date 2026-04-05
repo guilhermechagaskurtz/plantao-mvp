@@ -28,10 +28,10 @@ export default function CreateShift() {
   useEffect(() => {
     if (authLoading) return
 
-    if (!user || profile?.type !== 'clinic') {
+    /*if (!user || profile?.type !== 'clinic') {
       window.location.href = '/login'
       return
-    }
+    }*/
 
     const load = async () => {
       setLoading(true)
@@ -171,11 +171,11 @@ export default function CreateShift() {
       )}
 
       <Card className='mt-6'>
-        <div className='flex justify-between items-center mb-3'>
+        <div className='flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 mb-3'>
           <h2 className='text-lg font-semibold'>Seus plantões</h2>
 
-          <div className='flex gap-2'>
-            <div className='flex gap-2 mr-2'>
+          <div className='flex flex-col lg:flex-row gap-2'>
+            <div className='flex flex-wrap gap-2'>
               <button
                 onClick={() => setTimeFilter('today')}
                 className={`px-3 py-1 rounded text-sm ${timeFilter === 'today'
@@ -207,7 +207,7 @@ export default function CreateShift() {
               </button>
             </div>
 
-            <div className='flex gap-2'>
+            <div className='flex flex-wrap gap-2'>
               <button
                 onClick={() => setStatusFilter('all')}
                 className={`px-3 py-1 rounded text-sm ${statusFilter === 'all'

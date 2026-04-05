@@ -8,7 +8,6 @@ import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 import { useShiftsPage } from '@/hooks/useShiftsPage'
 import { useRouter } from 'next/navigation'
-
 import { getDistanceKm } from '@/lib/utils/distance'
 const Map = dynamic(() => import('@/components/Map'), {
     ssr: false
@@ -28,6 +27,7 @@ export default function ShiftDetailsPage() {
 
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [preferences, setPreferences] = useState<any>(null)
+
 
     const acceptShift = async () => {
         const confirmed = window.confirm('Deseja aceitar este plantão?')
@@ -57,6 +57,7 @@ export default function ShiftDetailsPage() {
         router.push('/my-shifts')
     }
 
+    
     useEffect(() => {
         if (!user?.id) return
 
@@ -223,14 +224,16 @@ export default function ShiftDetailsPage() {
                     {accepting ? 'Aceitando...' : 'Aceitar plantão'}
                 </Button>
             )}
-            <Map
-                shifts={[shift]}
-                selectedShiftId={shift.id}
-                onSelect={() => { }}
-                centerLat={preferences?.latitude}
-                centerLng={preferences?.longitude}
-                radiusKm={preferences?.radius_km}
-            />
+            <div className='h-[250px] md:h-[300px] rounded overflow-hidden'>
+                <Map
+                    shifts={[shift]}
+                    selectedShiftId={shift.id}
+                    onSelect={() => { }}
+                    centerLat={shift.latitude}
+                    centerLng={shift.longitude}
+                    radiusKm={10}
+                />
+            </div>
 
             <Button
                 onClick={() => {

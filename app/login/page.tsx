@@ -125,14 +125,6 @@ export default function Login() {
       return
     }
 
-    if (profile.type === 'doctor') {
-      router.push('/shifts')
-    } else if (profile.type === 'clinic') {
-      router.push('/clinic/shifts')
-    } else if (profile.type === 'admin') {
-      router.push('/admin')
-    }
-
     setLoading(false)
   }
 

@@ -36,10 +36,10 @@ export default function EditShiftPage() {
     useEffect(() => {
         if (authLoading) return
 
-        if (!user || profile?.type !== 'clinic') {
-            window.location.href = '/login'
-            return
-        }
+        /*if (!user || profile?.type !== 'clinic') {
+              window.location.href = '/login'
+              return
+            }*/
 
         const load = async () => {
             setLoading(true)

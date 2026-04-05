@@ -44,6 +44,14 @@ function FitBounds({
         // fallback → mostra todos
         if (!shifts.length) return
 
+        // 🔥 se só tem 1 ponto → centraliza corretamente
+        if (shifts.length === 1) {
+            const s = shifts[0]
+            map.setView([s.latitude, s.longitude], 14)
+            return
+        }
+
+        // vários pontos → fit normal
         const bounds = shifts.map(s => [s.latitude, s.longitude] as [number, number])
         map.fitBounds(bounds, { padding: [50, 50] })
 
@@ -116,7 +124,7 @@ export default function Map({
         }
     }, [])
     return (
-        <div className="w-full h-[500px] lg:h-[600px] relative overflow-hidden rounded-lg border">
+        <div className="w-full h-full relative overflow-hidden rounded-lg border">
             <MapContainer
                 center={center as any}
                 zoom={13}
