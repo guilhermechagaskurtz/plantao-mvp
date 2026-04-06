@@ -13,18 +13,30 @@ export function useAuth() {
         let isMounted = true
 
         const load = async () => {
-            const { user, profile } = await getUserWithProfile()
+            console.log('AUTH LOAD')
+
+            const { user: newUser, profile: newProfile } = await getUserWithProfile()
             if (!isMounted) return
 
-            setUser(user)
-            setProfile(profile)
+            setUser((prev: any) => {
+                if (prev?.id === newUser?.id) return prev
+                return newUser
+            })
+
+            setProfile((prev: any) => {
+                if (prev?.id === newProfile?.id) return prev
+                return newProfile
+            })
+
             setLoading(false)
         }
 
         load()
 
-        const { data: listener } = supabase.auth.onAuthStateChange(() => {
-            load()
+        const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+                load()
+            }
         })
 
         return () => {
