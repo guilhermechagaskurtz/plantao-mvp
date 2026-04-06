@@ -19,6 +19,7 @@ const Map = dynamic(() => import('@/components/Map'), {
 })
 
 
+
 export default function ShiftsPage() {
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null)
   const [specialtyFilter, setSpecialtyFilter] = useState('')
@@ -119,6 +120,43 @@ export default function ShiftsPage() {
     }
   }, [selectedShiftId])
 
+  
+  // === CENTRO DO MAPA (premium vs free) ===
+  const getMapCenter = () => {
+    if (isPremium && preferences?.latitude && preferences?.longitude) {
+      return {
+        lat: preferences.latitude,
+        lng: preferences.longitude,
+        radius: preferences.radius_km || 5
+      }
+    }
+
+    if (shifts.length === 0) {
+      return { lat: undefined, lng: undefined, radius: undefined }
+    }
+
+    const validShifts = shifts.filter(s => s.latitude && s.longitude)
+
+    if (validShifts.length === 0) {
+      return { lat: undefined, lng: undefined, radius: undefined }
+    }
+
+    const avgLat =
+      validShifts.reduce((sum, s) => sum + s.latitude, 0) /
+      validShifts.length
+
+    const avgLng =
+      validShifts.reduce((sum, s) => sum + s.longitude, 0) /
+      validShifts.length
+
+    return {
+      lat: avgLat,
+      lng: avgLng,
+      radius: undefined
+    }
+  }
+
+  const mapCenter = getMapCenter()
   return (
     <div className='flex flex-col gap-4'>
       {crmStatus === 'missing' && (
@@ -160,21 +198,14 @@ export default function ShiftsPage() {
               shifts={shifts}
               selectedShiftId={selectedShiftId}
               onSelect={setSelectedShiftId}
-              centerLat={preferences?.latitude}
-              centerLng={preferences?.longitude}
-              radiusKm={preferences?.radius_km}
+              centerLat={mapCenter.lat}
+              centerLng={mapCenter.lng}
+              radiusKm={mapCenter.radius}
             />
           </div>
 
           {/* LISTA */}
           <div className="w-full lg:w-3/5 flex flex-col gap-3">
-
-            <div className='text-sm text-gray-600'>
-              {preferences?.latitude && preferences?.longitude
-                ? 'Selecione um plantão no mapa ou na lista para ver detalhes e aceitar'
-                : 'Defina sua localização nas preferências para ver plantões próximos de você'}
-            </div>
-            {/* FILTROS */}
             {/* FILTROS */}
             <div className='flex flex-col gap-3'>
 
@@ -254,11 +285,11 @@ export default function ShiftsPage() {
               <span className='text-xs text-gray-400'>Filtrando...</span>
             )}
 
-            <div className="text-xs text-gray-500">
-              {preferences?.latitude && preferences?.longitude
-                ? 'Ordenado por proximidade'
-                : 'Ordenação padrão (defina sua localização para ver por proximidade)'}
-            </div>
+            {isPremium && preferences?.latitude && preferences?.longitude && (
+              <div className="text-xs text-gray-500">
+                Ordenado por proximidade
+              </div>
+            )}
             {/* LISTA SCROLL */}
             <div ref={listRef} className="flex flex-col gap-3 lg:max-h-[calc(100vh-200px)] lg:overflow-y-auto pr-1">
 
@@ -287,7 +318,7 @@ export default function ShiftsPage() {
                   }
 
                   // filtro por distância
-                  if (maxDistanceFilter && preferences?.latitude && preferences?.longitude) {
+                  if (isPremium && maxDistanceFilter && preferences?.latitude && preferences?.longitude) {
                     const maxDist = Number(maxDistanceFilter)
 
                     const dist = getDistanceKm(
@@ -304,7 +335,7 @@ export default function ShiftsPage() {
 
                 const values = filteredBase.map(s => Number(s.value))
                 const distances =
-                  preferences?.latitude && preferences?.longitude
+                  isPremium && preferences?.latitude && preferences?.longitude
                     ? filteredBase.map(s =>
                       getDistanceKm(
                         preferences.latitude,
@@ -321,7 +352,7 @@ export default function ShiftsPage() {
                 const maxDist = distances.length ? Math.max(...distances) : 0
 
                 const getPremiumScore = (shift: any) => {
-                  if (!preferences?.latitude || !preferences?.longitude) return 0
+                  if (!isPremium || !preferences?.latitude || !preferences?.longitude) return 0
 
                   const value = Number(shift.value)
 
@@ -352,18 +383,21 @@ export default function ShiftsPage() {
                 }
 
                 const filteredShifts = filteredBase.sort((a, b) => {
-                  if (!preferences?.latitude || !preferences?.longitude) return 0
+                  const centerLat = mapCenter.lat
+                  const centerLng = mapCenter.lng
+
+                  if (!centerLat || !centerLng) return 0
 
                   const distA = getDistanceKm(
-                    preferences.latitude,
-                    preferences.longitude,
+                    centerLat,
+                    centerLng,
                     a.latitude,
                     a.longitude
                   )
 
                   const distB = getDistanceKm(
-                    preferences.latitude,
-                    preferences.longitude,
+                    centerLat,
+                    centerLng,
                     b.latitude,
                     b.longitude
                   )
@@ -488,7 +522,7 @@ export default function ShiftsPage() {
                             })}
                           </p>
 
-                          {preferences?.latitude && preferences?.longitude && (
+                          {isPremium && preferences?.latitude && preferences?.longitude && (
                             <p>
                               <b>Distância:</b>{' '}
                               {Math.round(
