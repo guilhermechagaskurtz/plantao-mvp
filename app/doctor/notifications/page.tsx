@@ -142,7 +142,7 @@ export default function NotificationsPage() {
                         onClick={selectAll}
                         className='px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-gray-50 transition'
                     >
-                        Selecionar
+                        Selecionar todas
                     </button>
 
                     <button
