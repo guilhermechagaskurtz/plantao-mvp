@@ -27,7 +27,6 @@ export default function Header() {
   useEffect(() => {
     if (!profile?.id || type !== 'doctor') return
 
-    //Carrega o premium se for premium
     const loadPremium = async () => {
       const { data } = await supabase
         .from('doctors')
@@ -55,9 +54,19 @@ export default function Header() {
 
     const interval = setInterval(load, 5000)
 
+    // 🔥 NOVO: escuta evento para zerar badge imediatamente
+    const handleNotificationsRead = () => {
+      if (isMounted) {
+        setUnreadCount(0)
+      }
+    }
+
+    window.addEventListener('notifications-read', handleNotificationsRead)
+
     return () => {
       isMounted = false
       clearInterval(interval)
+      window.removeEventListener('notifications-read', handleNotificationsRead)
     }
   }, [profile?.id, type])
 
