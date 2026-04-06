@@ -68,6 +68,12 @@ export default function AdminShiftEditPage() {
             if (shift) {
                 setForm({
                     ...shift,
+                    value: shift.value
+                        ? Number(shift.value).toLocaleString('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL'
+                        })
+                        : '',
                     start_time: shift.start_time?.slice(0, 16),
                     end_time: shift.end_time?.slice(0, 16)
                 })
@@ -97,12 +103,65 @@ export default function AdminShiftEditPage() {
         setError('')
         setSuccess('')
 
+        if (!form.start_time || !form.end_time) {
+            setError('Preencha data e horário')
+            setSaving(false)
+            return
+        }
+
+        if (new Date(form.end_time) <= new Date(form.start_time)) {
+            setError('Horário final inválido')
+            setSaving(false)
+            return
+        }
+
+        if (new Date(form.start_time) <= new Date()) {
+            setError('Não é possível definir início no passado')
+            setSaving(false)
+            return
+        }
+
+        if (form.status === 'accepted' && !form.accepted_doctor_id) {
+            setError('Selecione um médico para marcar como aceito')
+            setSaving(false)
+            return
+        }
+
+        if (form.status === 'open' && form.accepted_doctor_id) {
+            setError('Plantão aberto não pode ter médico definido')
+            setSaving(false)
+            return
+        }
+
+        if (!form.value || Number(form.value) <= 0) {
+            setError('Valor inválido')
+            setSaving(false)
+            return
+        }
         const { error } = await supabase
             .from('shifts')
             .update({
-                ...form,
-                start_time: new Date(form.start_time),
-                end_time: new Date(form.end_time)
+                clinic_id: form.clinic_id,
+                accepted_doctor_id: form.accepted_doctor_id || null,
+                specialty: form.specialty,
+                start_time: form.start_time,
+                end_time: form.end_time,
+                value: Number(
+                    String(form.value)
+                        .replace(/\./g, '')
+                        .replace(',', '.')
+                        .replace(/[^\d.-]/g, '')
+                ),
+                address: form.address,
+                number: form.number,
+                complement: form.complement,
+                city: form.city,
+                state: form.state,
+                status: form.status,
+                paid: form.paid,
+                finished_by_doctor: form.finished_by_doctor,
+                payment_confirmed_by_doctor: form.payment_confirmed_by_doctor,
+                missed_by_clinic: form.missed_by_clinic
             })
             .eq('id', id)
 
@@ -151,16 +210,49 @@ export default function AdminShiftEditPage() {
             </select>
 
             <Input value={form.specialty} onChange={v => setField('specialty', v)} placeholder='Especialidade' />
-            <Input value={form.value} onChange={v => setField('value', v)} placeholder='Valor' />
+            <Input
+                value={form.value}
+                onChange={(v) => {
+                    const numeric = v.replace(/\D/g, '')
+                    const number = Number(numeric) / 100
+
+                    setField('value', number.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    }))
+                }}
+                placeholder='Valor'
+            />
 
             <Input type='datetime-local' value={form.start_time} onChange={v => setField('start_time', v)} />
             <Input type='datetime-local' value={form.end_time} onChange={v => setField('end_time', v)} />
 
             <Input value={form.address} onChange={v => setField('address', v)} placeholder='Endereço' />
-            <Input value={form.number} onChange={v => setField('number', v)} placeholder='Número' />
+            <Input
+                value={form.number}
+                onChange={(v) => {
+                    const numeric = v.replace(/\D/g, '')
+                    setField('number', numeric)
+                }}
+                placeholder='Número'
+            />
             <Input value={form.complement} onChange={v => setField('complement', v)} placeholder='Complemento' />
-            <Input value={form.city} onChange={v => setField('city', v)} placeholder='Cidade' />
-            <Input value={form.state} onChange={v => setField('state', v)} placeholder='Estado' />
+            <Input
+                value={form.city}
+                onChange={(v) => {
+                    const cleaned = v.replace(/[0-9]/g, '')
+                    setField('city', cleaned)
+                }}
+                placeholder='Cidade'
+            />
+            <Input
+                value={form.state}
+                onChange={(v) => {
+                    const letters = v.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2)
+                    setField('state', letters)
+                }}
+                placeholder='UF (ex: RS)'
+            />
 
             <select
                 value={form.status}

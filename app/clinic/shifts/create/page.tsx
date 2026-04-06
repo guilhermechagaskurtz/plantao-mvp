@@ -81,7 +81,14 @@ export default function CreateShiftPage() {
             return
         }
 
-        if (!value || Number(value) <= 0) {
+        const parsedValue = Number(
+            String(value)
+                .replace(/\./g, '')
+                .replace(',', '.')
+                .replace(/[^\d.-]/g, '')
+        )
+
+        if (!parsedValue || parsedValue <= 0) {
             setError('Valor inválido')
             return
         }
@@ -106,9 +113,9 @@ export default function CreateShiftPage() {
         const { error } = await supabase.from('shifts').insert({
             clinic_id: user.id,
             specialty,
-            start_time: new Date(start),
-            end_time: new Date(end),
-            value: Number(value),
+            start_time: start,
+            end_time: end,
+            value: parsedValue,
 
             latitude: clinic.latitude,
             longitude: clinic.longitude,
@@ -169,7 +176,19 @@ export default function CreateShiftPage() {
                         Requer RQE
                     </label>
 
-                    <Input value={value} onChange={setValue} placeholder='Valor' />
+                    <Input
+                        value={value}
+                        onChange={(v) => {
+                            const numeric = v.replace(/\D/g, '')
+                            const number = Number(numeric) / 100
+
+                            setValue(number.toLocaleString('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL'
+                            }))
+                        }}
+                        placeholder='Valor'
+                    />
 
                     <Input
                         type='datetime-local'

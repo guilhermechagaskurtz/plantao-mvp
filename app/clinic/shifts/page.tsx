@@ -96,6 +96,29 @@ export default function CreateShift() {
     setError('')
     setSuccess('')
 
+    // 1. buscar notifications do shift
+    const { data: notifications } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('shift_id', id)
+
+    // 2. deletar notification_reads (se houver)
+    if (notifications && notifications.length > 0) {
+      const notificationIds = notifications.map(n => n.id)
+
+      await supabase
+        .from('notification_reads')
+        .delete()
+        .in('notification_id', notificationIds)
+    }
+
+    // 3. deletar notifications
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('shift_id', id)
+
+    // 4. deletar shift
     const { error } = await supabase
       .from('shifts')
       .delete()
