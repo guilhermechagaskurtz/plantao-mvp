@@ -151,7 +151,7 @@ export default function MyShiftsPage() {
               </button>
             )}
 
-            {new Date(shift.start_time) < new Date() &&
+            {new Date(shift.end_time) <= new Date() &&
               !shift.finished_by_doctor &&
               !shift.missed_by_clinic && (
                 <button

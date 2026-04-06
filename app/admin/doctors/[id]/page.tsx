@@ -24,7 +24,6 @@ export default function AdminDoctorEditPage() {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
-    const [radiusKm, setRadiusKm] = useState(10)
     const [crmApproved, setCrmApproved] = useState(false)
     const [crmRejectionReason, setCrmRejectionReason] = useState('')
     const [errorMsg, setErrorMsg] = useState('')
@@ -87,7 +86,6 @@ export default function AdminDoctorEditPage() {
                 setPhone(doctor.phone || '')
                 setDocument(doctor.document || '')
                 setBio(doctor.bio || '')
-                setRadiusKm(doctor.radius_km || 10)
             }
 
             const { data: specialtiesData, error: specialtiesError } = await supabase
@@ -156,8 +154,7 @@ export default function AdminDoctorEditPage() {
             crm,
             phone,
             document,
-            bio,
-            radius_km: radiusKm
+            bio
         })
 
         if (error) {
@@ -238,7 +235,7 @@ export default function AdminDoctorEditPage() {
             }
         }
 
-        const { error: deleteInterestsError } = await supabase
+        /*const { error: deleteInterestsError } = await supabase
             .from('doctor_interests')
             .delete()
             .eq('doctor_id', id)
@@ -247,7 +244,7 @@ export default function AdminDoctorEditPage() {
             setError(deleteInterestsError.message)
             setSubmitting(false)
             return
-        }
+        }*/
 
         // pegar interesses atuais do banco
         const { data: existingInterests, error: fetchInterestsError } = await supabase
@@ -542,21 +539,6 @@ export default function AdminDoctorEditPage() {
                             </label>
                         ))}
                     </div>
-                </div>
-
-                <div className='flex flex-col gap-1'>
-                    <label className='text-sm text-gray-600'>
-                        Raio de atuação (km)
-                    </label>
-
-                    <input
-                        type='number'
-                        min={1}
-                        max={100}
-                        value={radiusKm}
-                        onChange={e => setRadiusKm(Number(e.target.value))}
-                        className='border p-2 rounded w-full'
-                    />
                 </div>
 
                 <button
