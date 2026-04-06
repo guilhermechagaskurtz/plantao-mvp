@@ -181,15 +181,17 @@ export default function Header() {
               >
                 Perfil
               </a>
-              <a
-                href='/doctor/notifications/preferences'
-                className={`text-sm transition ${pathname === '/doctor/notifications/preferences'
-                  ? 'text-blue-600 font-medium'
-                  : 'text-gray-600 hover:text-gray-900'
-                  }`}
-              >
-                Configurar Alertas
-              </a>
+              {isPremium && (
+                <a
+                  href='/doctor/notifications/preferences'
+                  className={`text-sm transition ${pathname === '/doctor/notifications/preferences'
+                    ? 'text-blue-600 font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                  Configurar Alertas
+                </a>
+              )}
               {!isPremium && (
                 <a
                   href='/premium'
@@ -341,17 +343,19 @@ export default function Header() {
               >
                 Perfil
               </a>
-              <a
-                href='/doctor/notifications/preferences'
-                onClick={() => setOpen(false)}
-                className={
-                  pathname === '/doctor/notifications/preferences'
-                    ? 'text-blue-600 font-medium'
-                    : ''
-                }
-              >
-                Configurar Alertas
-              </a>
+              {isPremium && (
+                <a
+                  href='/doctor/notifications/preferences'
+                  onClick={() => setOpen(false)}
+                  className={
+                    pathname === '/doctor/notifications/preferences'
+                      ? 'text-blue-600 font-medium'
+                      : ''
+                  }
+                >
+                  Configurar Alertas
+                </a>
+              )}
               <a
                 href='/doctor/notifications'
                 onClick={() => setOpen(false)}

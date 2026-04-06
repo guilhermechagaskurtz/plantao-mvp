@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { SPECIALTIES } from '@/lib/specialties'
 import { useEffect, useState } from 'react'
+import { getIsPremium } from '@/lib/services/premium'
 
 type Filter = {
     id: string
@@ -18,6 +19,7 @@ type Filter = {
 
 export default function NotificationPreferencesPage() {
     const { profile } = useAuth()
+    const [isPremium, setIsPremium] = useState<boolean | null>(null)
 
     const [filters, setFilters] = useState<Filter[]>([])
     const [draftFilters, setDraftFilters] = useState<Filter[]>([])
@@ -28,6 +30,14 @@ export default function NotificationPreferencesPage() {
         if (!profile?.id) return
 
         const load = async () => {
+            const premium = await getIsPremium(profile.id)
+            setIsPremium(premium)
+
+            if (!premium) {
+                setLoading(false)
+                return
+            }
+
             const { data } = await supabase
                 .from('doctor_notification_preferences')
                 .select('*')
@@ -110,7 +120,20 @@ export default function NotificationPreferencesPage() {
         }
     }
 
-    if (loading) return <div className='p-6'>Carregando...</div>
+    if (loading || isPremium === null) {
+        return <div className='p-6'>Carregando...</div>
+    }
+
+    if (!isPremium) {
+        return (
+            <div className='p-6 max-w-xl mx-auto text-center'>
+                <h1 className='text-lg font-semibold mb-2'>Recurso Premium</h1>
+                <p className='text-sm text-gray-600'>
+                    Configure alertas personalizados com o plano premium.
+                </p>
+            </div>
+        )
+    }
 
     return (
         <div className='p-6 max-w-2xl mx-auto flex flex-col gap-6'>
