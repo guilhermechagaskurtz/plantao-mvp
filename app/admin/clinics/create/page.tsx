@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function CreateClinicPage() {
@@ -42,36 +41,6 @@ export default function CreateClinicPage() {
 
         setLoading(true)
 
-        const password = Math.random().toString(36).slice(-8)
-
-        const { data, error: authError } = await supabase.auth.signUp({
-            email: form.email,
-            password
-        })
-
-        if (authError || !data.user) {
-            setError('Erro ao criar usuário')
-            setLoading(false)
-            return
-        }
-
-        const userId = data.user.id
-
-        // profile
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-                id: userId,
-                type: 'clinic',
-                approval_status: 'approved'
-            })
-
-        if (profileError) {
-            setError(profileError.message)
-            setLoading(false)
-            return
-        }
-
         const fullAddress = `${form.address} ${form.number}, ${form.city}, ${form.state}, Brasil`
 
         let latitude = 0
@@ -96,31 +65,25 @@ export default function CreateClinicPage() {
             setLoading(false)
             return
         }
-        const { error: clinicError } = await supabase
-            .from('clinics')
-            .insert({
-                id: userId,
-                name: form.name,
-                cnpj: form.cnpj,
-                email: form.email,
-                phone: form.phone,
-                address: form.address,
-                number: form.number,
-                complement: form.complement,
-                city: form.city,
-                state: form.state,
-                zip_code: form.zip_code,
+
+        const res = await fetch('/api/admin/create-clinic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...form,
                 latitude,
                 longitude
             })
+        })
 
-        if (clinicError) {
-            setError(clinicError.message)
+        const data = await res.json()
+
+        if (!res.ok) {
+            setError(data.error || 'Erro ao criar clínica')
             setLoading(false)
             return
         }
 
-        await supabase.auth.resetPasswordForEmail(form.email)
         router.push('/admin/clinics?saved=1')
     }
 
