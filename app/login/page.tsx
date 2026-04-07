@@ -37,7 +37,7 @@ export default function Login() {
     }
 
     if (profile.type === 'clinic') {
-      router.replace('/clinic/shifts')
+      router.replace('/clinic')
       return
     }
 

@@ -66,8 +66,14 @@ export default function EditShiftPage() {
             setShift(data)
             setSpecialty(data.specialty)
             setValue(String(data.value))
-            setStart(new Date(data.start_time).toISOString().slice(0, 16))
-            setEnd(new Date(data.end_time).toISOString().slice(0, 16))
+            const formatLocal = (dateString: string) => {
+                const date = new Date(dateString)
+                const offset = date.getTimezoneOffset() * 60000
+                return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+            }
+
+            setStart(formatLocal(data.start_time))
+            setEnd(formatLocal(data.end_time))
             setRequiresRqe(data.requires_rqe || false)
 
             setLoading(false)
