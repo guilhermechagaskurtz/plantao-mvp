@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { useSearchParams } from 'next/navigation'
 
 const specialties = [
     'Clínico Geral',
@@ -20,7 +21,7 @@ const specialties = [
 
 export default function CreateShiftPage() {
     const { user, profile, loading: authLoading } = useAuth()
-
+    const searchParams = useSearchParams()
     const [specialty, setSpecialty] = useState('')
     const [value, setValue] = useState('')
     const [start, setStart] = useState('')
@@ -60,6 +61,13 @@ export default function CreateShiftPage() {
         }
 
         load()
+
+        const dateParam = searchParams.get('date')
+
+        if (dateParam) {
+            setStart(`${dateParam}T07:00`)
+            setEnd(`${dateParam}T19:00`)
+        }
     }, [authLoading, user, profile])
 
     const handleCreate = async () => {

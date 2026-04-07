@@ -6,6 +6,7 @@ app/clinic/page.tsx
 import { useAuth } from '@/hooks/useAuth'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { SPECIALTIES } from '@/lib/specialties'
 
 type Shift = {
   id: string
@@ -58,9 +59,7 @@ export default function ClinicDashboard() {
     load()
   }, [authLoading, user, profile])
 
-  const specialties = useMemo(() => {
-    return Array.from(new Set(shifts.map(s => s.specialty)))
-  }, [shifts])
+  const specialties = SPECIALTIES
 
   const filteredShifts = useMemo(() => {
     if (selectedSpecialties.length === 0) return shifts
@@ -133,7 +132,9 @@ export default function ClinicDashboard() {
           <div className='text-sm font-semibold'>{d}</div>
 
           <button
-            onClick={() => (window.location.href = '/clinic/shifts/create')}
+            onClick={() =>
+              (window.location.href = `/clinic/shifts/create?date=${key}`)
+            }
             className='text-xs bg-blue-600 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition'
           >
             Criar
@@ -145,8 +146,8 @@ export default function ClinicDashboard() {
             key={item.id}
             onClick={() => (window.location.href = `/clinic/shifts/${item.id}/edit`)}
             className={`text-xs mt-1 px-1 rounded cursor-pointer ${item.status === 'accepted'
-                ? 'bg-blue-200'
-                : 'bg-gray-200'
+              ? 'bg-blue-200'
+              : 'bg-gray-200'
               }`}
           >
             {new Date(item.start_time).toLocaleTimeString([], {
@@ -211,7 +212,7 @@ export default function ClinicDashboard() {
         ))}
       </div>
 
-      {/* FILTRO */}
+      {/* FILTRO 
       <div className='flex justify-end'>
         <button
           onClick={() => setFilterOpen(true)}
@@ -220,14 +221,26 @@ export default function ClinicDashboard() {
           Filtrar especialidades
         </button>
       </div>
+      */}
 
       {/* CALENDÁRIO */}
       <div className='bg-white rounded-xl border shadow-sm p-4'>
-        <h2 className='font-bold mb-3'>Calendário</h2>
+        <div className='flex justify-between items-center mb-3'>
+          <h2 className='font-bold'>Calendário</h2>
+
+          <button
+            onClick={() => setFilterOpen(true)}
+            className='bg-gray-800 hover:bg-gray-900 text-white text-sm px-3 py-2 rounded-lg'
+          >
+            Filtrar
+          </button>
+        </div>
 
         <div className='grid grid-cols-7 gap-1 md:gap-2 text-xs md:text-sm'>
           {WEEK_DAYS.map(d => (
-            <div key={d} className='text-center font-semibold'>{d}</div>
+            <div key={d} className='text-center font-semibold'>
+              {d}
+            </div>
           ))}
           {cells}
         </div>

@@ -218,7 +218,7 @@ export default function ShiftsPage() {
                     checked={onlyUrgent}
                     onChange={e => setOnlyUrgent(e.target.checked)}
                   />
-                  Urgentes (até 6h)
+                  Urgentes (até 24h)
                 </label>
 
                 <select
@@ -301,7 +301,7 @@ export default function ShiftsPage() {
                     const now = Date.now()
                     const diffHours = (start - now) / (1000 * 60 * 60)
 
-                    if (!(diffHours <= 6 && diffHours > 0)) return false
+                    if (!(diffHours <= 24 && diffHours > 0)) return false
                   }
 
                   if (specialtyFilter && shift.specialty !== specialtyFilter) return false
@@ -453,7 +453,7 @@ export default function ShiftsPage() {
                           const now = Date.now()
                           const diffHours = (start - now) / (1000 * 60 * 60)
 
-                          if (diffHours <= 6 && diffHours > 0) {
+                          if (diffHours <= 24 && diffHours > 0) {
                             return (
                               <div className='text-xs bg-red-100 text-red-700 px-2 py-1 rounded mb-2 w-fit'>
                                 Começa em breve
