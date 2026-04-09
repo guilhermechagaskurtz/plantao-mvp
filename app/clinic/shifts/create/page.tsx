@@ -32,7 +32,9 @@ export default function CreateShiftPage() {
     const [success, setSuccess] = useState('')
     const [clinic, setClinic] = useState<any>(null)
     const [requiresRqe, setRequiresRqe] = useState(false)
-
+    const [templates, setTemplates] = useState<any[]>([])
+    const [selectedTemplateId, setSelectedTemplateId] = useState('')
+    const [loadingTemplate, setLoadingTemplate] = useState(false)
     useEffect(() => {
         if (authLoading) return
 
@@ -50,6 +52,13 @@ export default function CreateShiftPage() {
                 .eq('id', user.id)
                 .single()
 
+            const { data: templates } = await supabase
+                .from('shift_templates')
+                .select('*')
+                .eq('clinic_id', user.id)
+
+            setTemplates(templates || [])
+
             if (!clinic) {
                 setError('Clínica não encontrada')
                 setLoading(false)
@@ -57,18 +66,116 @@ export default function CreateShiftPage() {
             }
 
             setClinic(clinic)
+
+
             setLoading(false)
         }
 
         load()
 
-        const dateParam = searchParams.get('date')
+        /*const dateParam = searchParams.get('date')
+
+        const templateId = searchParams.get('template_id')
+
+        if (templateId && templates.length > 0) {
+            const template = templates.find(t => t.id === templateId)
+            if (template) {
+                applyTemplate(template)
+                setSelectedTemplateId(templateId)
+            }
+        }
 
         if (dateParam) {
             setStart(`${dateParam}T07:00`)
             setEnd(`${dateParam}T19:00`)
-        }
+        }*/
     }, [authLoading, user, profile])
+
+    useEffect(() => {
+        const dateParam = searchParams.get('date')
+        const templateId = searchParams.get('template_id')
+
+        if (templateId) {
+            setLoadingTemplate(true)
+        }
+
+        if (!dateParam) return
+
+        if (!templateId) {
+            setStart(`${dateParam}T07:00`)
+            setEnd(`${dateParam}T19:00`)
+            setSelectedTemplateId('')
+            setLoadingTemplate(false)
+            return
+        }
+
+        if (templates.length === 0) return
+
+        const template = templates.find(t => t.id === templateId)
+
+        if (!template) {
+            setStart(`${dateParam}T07:00`)
+            setEnd(`${dateParam}T19:00`)
+            setSelectedTemplateId('')
+            setLoadingTemplate(false)
+            return
+        }
+
+        setSelectedTemplateId(templateId)
+
+        if (template.specialty) {
+            setSpecialty(template.specialty)
+        } else {
+            setSpecialty('')
+        }
+
+        if (template.value) {
+            setValue(
+                Number(template.value).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                })
+            )
+        } else {
+            setValue('')
+        }
+
+        setRequiresRqe(!!template.requires_rqe)
+
+        if (!template.start_time || !template.end_time) {
+            setStart(`${dateParam}T07:00`)
+            setEnd(`${dateParam}T19:00`)
+            setLoadingTemplate(false)
+            return
+        }
+
+        const [startHour, startMinute] = template.start_time.split(':')
+        const [endHour, endMinute] = template.end_time.split(':')
+
+        const startDate = new Date(`${dateParam}T00:00`)
+        startDate.setHours(Number(startHour), Number(startMinute), 0, 0)
+
+        const endDate = new Date(`${dateParam}T00:00`)
+        endDate.setHours(Number(endHour), Number(endMinute), 0, 0)
+
+        if (endDate <= startDate) {
+            endDate.setDate(endDate.getDate() + 1)
+        }
+
+        const format = (date: Date) => {
+            const yyyy = date.getFullYear()
+            const mm = String(date.getMonth() + 1).padStart(2, '0')
+            const dd = String(date.getDate()).padStart(2, '0')
+            const hh = String(date.getHours()).padStart(2, '0')
+            const min = String(date.getMinutes()).padStart(2, '0')
+
+            return `${yyyy}-${mm}-${dd}T${hh}:${min}`
+        }
+
+        setStart(format(startDate))
+        setEnd(format(endDate))
+        setLoadingTemplate(false)
+    }, [searchParams, templates])
 
     const handleCreate = async () => {
         setError('')
@@ -145,11 +252,72 @@ export default function CreateShiftPage() {
         window.location.href = '/clinic/shifts'
     }
 
+    const applyTemplate = (template: any) => {
+        if (template.specialty) {
+            setSpecialty(template.specialty)
+        } else {
+            setSpecialty('')
+        }
+
+        if (template.value) {
+            setValue(
+                Number(template.value).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                })
+            )
+        } else {
+            setValue('')
+        }
+
+        setRequiresRqe(!!template.requires_rqe)
+
+        const dateParam = searchParams.get('date')
+        const baseDate = dateParam || new Date().toISOString().split('T')[0]
+
+        if (!template.start_time || !template.end_time) {
+            setStart(`${baseDate}T07:00`)
+            setEnd(`${baseDate}T19:00`)
+            return
+        }
+
+        const [startHour, startMinute] = template.start_time.split(':')
+        const [endHour, endMinute] = template.end_time.split(':')
+
+        const startDate = new Date(`${baseDate}T00:00`)
+        startDate.setHours(Number(startHour), Number(startMinute), 0, 0)
+
+        const endDate = new Date(`${baseDate}T00:00`)
+        endDate.setHours(Number(endHour), Number(endMinute), 0, 0)
+
+        if (endDate <= startDate) {
+            endDate.setDate(endDate.getDate() + 1)
+        }
+
+        const format = (date: Date) => {
+            const yyyy = date.getFullYear()
+            const mm = String(date.getMonth() + 1).padStart(2, '0')
+            const dd = String(date.getDate()).padStart(2, '0')
+            const hh = String(date.getHours()).padStart(2, '0')
+            const min = String(date.getMinutes()).padStart(2, '0')
+
+            return `${yyyy}-${mm}-${dd}T${hh}:${min}`
+        }
+
+        setStart(format(startDate))
+        setEnd(format(endDate))
+    }
+
     return (
         <div className='max-w-xl mx-auto'>
             {error && (
                 <div className='bg-red-100 text-red-700 p-2 rounded mb-3'>
                     {error}
+                </div>
+            )}
+            {loadingTemplate && (
+                <div className='bg-blue-100 text-blue-700 p-2 rounded mb-3 text-sm'>
+                    Aplicando modelo...
                 </div>
             )}
 
@@ -161,6 +329,24 @@ export default function CreateShiftPage() {
                 </div>
 
                 <div className='flex flex-col gap-3'>
+                    <select
+                        value={selectedTemplateId}
+                        onChange={e => {
+                            const id = e.target.value
+                            setSelectedTemplateId(id)
+
+                            const template = templates.find(t => t.id === id)
+                            if (template) applyTemplate(template)
+                        }}
+                        className='p-2 bg-gray-200 rounded text-black'
+                    >
+                        <option value=''>Usar modelo (opcional)</option>
+                        {templates.map(t => (
+                            <option key={t.id} value={t.id}>
+                                {t.code} {t.specialty ? `- ${t.specialty}` : ''}
+                            </option>
+                        ))}
+                    </select>
                     <select
                         value={specialty}
                         onChange={e => setSpecialty(e.target.value)}

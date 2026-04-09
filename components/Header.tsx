@@ -237,7 +237,7 @@ export default function Header() {
               >
                 Home
               </a>
-              
+
               <a
                 href='/clinic/shifts'
                 className={`text-sm transition ${pathname === '/clinic/shifts'
@@ -246,6 +246,16 @@ export default function Header() {
                   }`}
               >
                 Plantões
+              </a>
+
+              <a
+                href='/clinic/templates'
+                className={`text-sm transition ${pathname === '/clinic/templates'
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
+              >
+                Modelos
               </a>
 
               <a
@@ -412,7 +422,12 @@ export default function Header() {
               >
                 Plantões
               </a>
-
+              <a
+                href='/clinic/templates'
+                onClick={() => setOpen(false)}
+              >
+                Modelos
+              </a>
               <a
                 href='/clinic/financial'
                 onClick={() => setOpen(false)}

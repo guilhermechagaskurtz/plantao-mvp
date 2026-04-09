@@ -34,6 +34,7 @@ export default function ClinicDashboard() {
 
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
+  const [templates, setTemplates] = useState<any[]>([])
 
   useEffect(() => {
     if (authLoading) return
@@ -52,6 +53,12 @@ export default function ClinicDashboard() {
         .eq('clinic_id', user.id)
         .is('deleted_at', null)
 
+      const { data: templates } = await supabase
+        .from('shift_templates')
+        .select('*')
+        .eq('clinic_id', user.id)
+
+      setTemplates(templates || [])
       setShifts(data || [])
       setLoading(false)
     }
@@ -131,14 +138,50 @@ export default function ClinicDashboard() {
         <div className='flex justify-between items-start'>
           <div className='text-sm font-semibold'>{d}</div>
 
-          <button
-            onClick={() =>
-              (window.location.href = `/clinic/shifts/create?date=${key}`)
-            }
-            className='text-xs bg-blue-600 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition'
-          >
-            Criar
-          </button>
+          {templates.length === 0 ? (
+            <button
+              onClick={() =>
+                (window.location.href = `/clinic/shifts/create?date=${key}`)
+              }
+              className='text-xs bg-blue-600 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition'
+            >
+              Criar
+            </button>
+          ) : (
+            <div className='relative opacity-0 group-hover:opacity-100 transition'>
+              <div className='group/create relative inline-block'>
+
+                <button className='text-xs bg-blue-600 text-white px-2 py-1 rounded'>
+                  Criar
+                </button>
+
+                <div className='absolute right-0 top-full bg-white border rounded shadow-lg z-50 min-w-[120px] opacity-0 invisible group-hover/create:opacity-100 group-hover/create:visible transition'>
+
+                  <div
+                    onClick={() =>
+                      (window.location.href = `/clinic/shifts/create?date=${key}`)
+                    }
+                    className='px-3 py-2 text-xs hover:bg-gray-100 cursor-pointer'
+                  >
+                    Sem modelo
+                  </div>
+
+                  {templates.map(t => (
+                    <div
+                      key={t.id}
+                      onClick={() =>
+                        (window.location.href = `/clinic/shifts/create?date=${key}&template_id=${t.id}`)
+                      }
+                      className='px-3 py-2 text-xs hover:bg-gray-100 cursor-pointer'
+                    >
+                      {t.code}
+                    </div>
+                  ))}
+
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {items.slice(0, 3).map(item => (
