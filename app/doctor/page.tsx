@@ -27,6 +27,8 @@ export default function DoctorDashboard() {
     const [loading, setLoading] = useState(true)
     const [showAvailable, setShowAvailable] = useState(false)
     const [currentMonth, setCurrentMonth] = useState(new Date())
+    const [notifications, setNotifications] = useState<any[]>([])
+    const [preferences, setPreferences] = useState<any[]>([])
 
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
@@ -56,6 +58,18 @@ export default function DoctorDashboard() {
                 .eq('status', 'open')
                 .gt('start_time', now)
 
+            const { data: notifs } = await supabase
+                .rpc('get_doctor_notifications', { p_doctor_id: user.id })
+
+            const { data: prefs } = await supabase
+                .from('doctor_notification_preferences')
+                .select('*')
+                .eq('doctor_id', user.id)
+                .eq('in_app_enabled', true)
+
+            setNotifications(notifs || [])
+            setPreferences(prefs || [])
+
             setAcceptedShifts(accepted || [])
             setAvailableShifts(available || [])
             setLoading(false)
@@ -79,6 +93,14 @@ export default function DoctorDashboard() {
         })
     }, [acceptedShifts, availableShifts, showAvailable])
 
+    const unreadShiftIds = useMemo(() => {
+        return new Set(
+            notifications
+                .filter(n => !n.read)
+                .map(n => n.shift_id)
+        )
+    }, [notifications])
+
     const grouped = useMemo(() => {
         const map: Record<string, Array<ShiftItem & { kind: 'accepted' | 'open' }>> = {}
 
@@ -91,6 +113,22 @@ export default function DoctorDashboard() {
         return map
     }, [allItems])
 
+    function matchesPreference(shift: any) {
+        if (!preferences.length) return true
+
+        return preferences.some(pref => {
+            if (pref.min_value && shift.value < pref.min_value) return false
+
+            if (pref.city && shift.city !== pref.city) return false
+
+            if (pref.specialties?.length) {
+                if (!pref.specialties.includes(shift.specialty)) return false
+            }
+
+            return true
+        })
+    }
+
     if (authLoading || loading) {
         return <div className='p-6'>Carregando...</div>
     }
@@ -99,6 +137,28 @@ export default function DoctorDashboard() {
         return (
             <div className='p-4 flex flex-col gap-4'>
                 <h1 className='text-lg font-bold'>Plantões</h1>
+
+                <div className='flex flex-wrap gap-3 text-xs'>
+                    <div className='flex items-center gap-1'>
+                        <div className='w-3 h-3 bg-blue-100 rounded'></div>
+                        <span>Aceito</span>
+                    </div>
+
+                    <div className='flex items-center gap-1'>
+                        <div className='w-3 h-3 bg-yellow-100 rounded'></div>
+                        <span>Notificação não lida</span>
+                    </div>
+
+                    <div className='flex items-center gap-1'>
+                        <div className='w-3 h-3 bg-green-100 rounded'></div>
+                        <span>Compatível com seus filtros</span>
+                    </div>
+
+                    <div className='flex items-center gap-1'>
+                        <div className='w-3 h-3 bg-gray-100 rounded'></div>
+                        <span>Outros disponíveis</span>
+                    </div>
+                </div>
 
                 <label className='flex gap-2 text-sm'>
                     <input
@@ -121,7 +181,13 @@ export default function DoctorDashboard() {
                                 onClick={() => {
                                     window.location.href = `/shifts/${item.id}`
                                 }}
-                                className={`p-3 rounded border cursor-pointer ${item.kind === 'accepted' ? 'bg-blue-100' : 'bg-gray-100'
+                                className={`p-3 rounded border cursor-pointer ${item.kind === 'accepted'
+                                        ? 'bg-blue-100'
+                                        : unreadShiftIds.has(item.id)
+                                            ? 'bg-yellow-100'
+                                            : matchesPreference(item)
+                                                ? 'bg-green-100'
+                                                : 'bg-gray-100'
                                     }`}
                             >
                                 {new Date(item.start_time).toLocaleTimeString([], {
@@ -166,7 +232,13 @@ export default function DoctorDashboard() {
                         onClick={() => {
                             window.location.href = `/shifts/${item.id}`
                         }}
-                        className={`text-xs mt-1 px-1 rounded cursor-pointer ${item.kind === 'accepted' ? 'bg-blue-200' : 'bg-gray-200'
+                        className={`text-xs mt-1 px-1 rounded cursor-pointer ${item.kind === 'accepted'
+                            ? 'bg-blue-200'
+                            : unreadShiftIds.has(item.id)
+                                ? 'bg-yellow-200'
+                                : matchesPreference(item)
+                                    ? 'bg-green-200'
+                                    : 'bg-gray-200'
                             }`}
                     >
                         {new Date(item.start_time).toLocaleTimeString([], {
@@ -189,7 +261,27 @@ export default function DoctorDashboard() {
     return (
         <div className='p-6 flex flex-col gap-4'>
             <h1 className='text-xl font-bold'>Calendário</h1>
+            <div className='flex flex-wrap gap-4 text-xs'>
+                <div className='flex items-center gap-1'>
+                    <div className='w-3 h-3 bg-blue-200 rounded'></div>
+                    <span>Aceito</span>
+                </div>
 
+                <div className='flex items-center gap-1'>
+                    <div className='w-3 h-3 bg-yellow-200 rounded'></div>
+                    <span>Nova notificação</span>
+                </div>
+
+                <div className='flex items-center gap-1'>
+                    <div className='w-3 h-3 bg-green-200 rounded'></div>
+                    <span>Compatível com seus filtros</span>
+                </div>
+
+                <div className='flex items-center gap-1'>
+                    <div className='w-3 h-3 bg-gray-200 rounded'></div>
+                    <span>Outros</span>
+                </div>
+            </div>
             <label className='flex gap-2 text-sm'>
                 <input
                     type='checkbox'
