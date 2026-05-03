@@ -1,406 +1,727 @@
-/*
-app/clinic/shifts/page.tsx
-*/
 'use client'
 
-import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { useState } from 'react'
-import { useEffect } from 'react'
-import { useRef } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Card from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import Button from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
 
+const PAGE_SIZE = 20
 
-export default function CreateShift() {
-  const { user, profile, loading: authLoading } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [clinic, setClinic] = useState<any>(null)
-  const [shifts, setShifts] = useState<any[]>([])
-  const formRef = useRef<HTMLDivElement | null>(null)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'accepted'>('all')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [timeFilter, setTimeFilter] = useState<'today' | 'future' | 'past'>('today')
+type PeriodFilter = 'all' | 'today' | 'upcoming' | 'past'
+type StatusFilter = 'all' | 'open' | 'accepted'
 
-  useEffect(() => {
-    if (authLoading) return
+type ShiftRow = {
+    id: string
+    specialty: string | null
+    start_time: string
+    end_time: string | null
+    value: number | string | null
+    status: string | null
+    city: string | null
+    state: string | null
+    clinic_id: string | null
+    accepted_doctor_id: string | null
+    finished_by_doctor: boolean | null
+    paid_by_clinic: boolean | null
+    payment_confirmed_by_doctor: boolean | null
+    missed_by_clinic: boolean | null
+    doctors?: { name?: string | null } | null
+}
 
-    /*if (!user || profile?.type !== 'clinic') {
-      window.location.href = '/login'
-      return
-    }*/
+type FilterOption<T extends string> = {
+    value: T
+    label: string
+    description: string
+}
 
-    const load = async () => {
-      setLoading(true)
-      setError('')
+type Counts = {
+    period: Record<PeriodFilter, number>
+    status: Record<StatusFilter, number>
+}
 
-      const { data: clinic } = await supabase
-        .from('clinics')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (!clinic) {
-        setError('Clínica não encontrada')
-        setLoading(false)
-        return
-      }
-
-
-      setClinic(clinic)
-      await loadShifts(clinic.id)
-      setLoading(false)
+const PERIOD_OPTIONS: FilterOption<PeriodFilter>[] = [
+    {
+        value: 'all',
+        label: 'Todos',
+        description: 'Mostra plantões de qualquer período.'
+    },
+    {
+        value: 'today',
+        label: 'Hoje',
+        description: 'Plantões marcados para hoje.'
+    },
+    {
+        value: 'upcoming',
+        label: 'Próximos',
+        description: 'Plantões que ainda vão acontecer.'
+    },
+    {
+        value: 'past',
+        label: 'Passados',
+        description: 'Plantões cuja data já passou.'
     }
+]
 
-    load()
-  }, [authLoading, user, profile])
-
-  const loadShifts = async (clinicId: string) => {
-    const { data, error } = await supabase
-      .from('shifts')
-      .select(`
-    *,
-    doctors:accepted_doctor_id (
-      id,
-      name,
-      crm
-    )
-  `)
-      .eq('clinic_id', clinicId)
-      .order('status', { ascending: true })
-      .order('start_time', { ascending: false })
-
-    if (error) {
-      setError(error.message)
-      return
+const STATUS_OPTIONS: FilterOption<StatusFilter>[] = [
+    {
+        value: 'all',
+        label: 'Todos os status',
+        description: 'Mostra plantões abertos e aceitos.'
+    },
+    {
+        value: 'open',
+        label: 'Abertos',
+        description: 'Plantões disponíveis para aceite.'
+    },
+    {
+        value: 'accepted',
+        label: 'Aceitos',
+        description: 'Plantões já aceitos por um médico.'
     }
+]
 
-    if (data) {
-      setShifts(data)
-    }
-  }
+function getProfileClinicId(profile: unknown) {
+    const profileAsAny = profile as any
 
+    const possibleClinicId =
+        profileAsAny?.clinic_id ||
+        profileAsAny?.clinicId ||
+        profileAsAny?.clinic?.id
 
+    return typeof possibleClinicId === 'string' ? possibleClinicId : null
+}
 
-  const deleteShift = async (id: string) => {
-    const shift = shifts.find(s => s.id === id)
+function startOfLocalDay(date: Date) {
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+    return d
+}
 
-    if (shift?.status !== 'open') {
-      setError('Não é possível remover um plantão já aceito')
-      return
-    }
+function addDays(date: Date, days: number) {
+    const d = new Date(date)
+    d.setDate(d.getDate() + days)
+    return d
+}
 
-    setError('')
-    setSuccess('')
+function isToday(date: string) {
+    const target = new Date(date)
+    const todayStart = startOfLocalDay(new Date())
+    const tomorrowStart = addDays(todayStart, 1)
 
-    // 1. buscar notifications do shift
-    const { data: notifications } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('shift_id', id)
+    return target >= todayStart && target < tomorrowStart
+}
 
-    // 2. deletar notification_reads (se houver)
-    if (notifications && notifications.length > 0) {
-      const notificationIds = notifications.map(n => n.id)
+function isUpcoming(date: string) {
+    return new Date(date).getTime() > new Date().getTime()
+}
 
-      await supabase
-        .from('notification_reads')
-        .delete()
-        .in('notification_id', notificationIds)
-    }
+function isPast(date: string) {
+    return new Date(date).getTime() < new Date().getTime()
+}
 
-    // 3. deletar notifications
-    await supabase
-      .from('notifications')
-      .delete()
-      .eq('shift_id', id)
+function matchesPeriod(shift: ShiftRow, period: PeriodFilter) {
+    if (period === 'all') return true
+    if (period === 'today') return isToday(shift.start_time)
+    if (period === 'upcoming') return isUpcoming(shift.start_time)
+    if (period === 'past') return isPast(shift.start_time)
 
-    // 4. deletar shift
-    const { error } = await supabase
-      .from('shifts')
-      .delete()
-      .eq('id', id)
+    return true
+}
 
-    if (error) {
-      setError(error.message)
-      return
-    }
+function matchesStatus(shift: ShiftRow, status: StatusFilter) {
+    if (status === 'all') return true
+    return shift.status === status
+}
 
-    setShifts(prev => prev.filter(s => s.id !== id))
-    setSuccess('Plantão removido')
-  }
+function getOptionLabel<T extends string>(options: FilterOption<T>[], value: T) {
+    return options.find(option => option.value === value)?.label || value
+}
 
+function formatCurrency(value: number | string | null) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    })
+}
 
-  const getTimeLabel = (date: string) => {
+function formatDateTime(date: string) {
+    return new Date(date).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
+
+function getTimeLabel(date: string) {
     const diffMs = new Date(date).getTime() - new Date().getTime()
     const diffMin = Math.floor(diffMs / 60000)
-
-    // mais de 24h → não mostra nada
-    if (diffMin > 1440) return ''
 
     if (diffMin <= 0) return 'Já começou'
     if (diffMin < 60) return `Começa em ${diffMin} min`
 
     const hours = Math.floor(diffMin / 60)
-    return `Começa em ${hours}h`
-  }
+    if (hours < 24) return `Começa em ${hours}h`
 
-  const isToday = (date: string) => {
-    const d = new Date(date)
+    const days = Math.floor(hours / 24)
+    return `Começa em ${days}d`
+}
+
+function getStage(shift: ShiftRow) {
     const now = new Date()
+    const start = new Date(shift.start_time)
+    const end = shift.end_time
+        ? new Date(shift.end_time)
+        : new Date(start.getTime() + 60 * 60 * 1000)
+
+    if (shift.status === 'open' && start > now) {
+        return {
+            key: 'open',
+            label: 'Aberto para aceite',
+            tone: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        }
+    }
+
+    if (shift.status === 'open' && start <= now) {
+        return {
+            key: 'expired',
+            label: 'Expirado',
+            tone: 'bg-red-100 text-red-700 border-red-200'
+        }
+    }
+
+    if (shift.status === 'accepted' && now < start) {
+        return {
+            key: 'accepted_future',
+            label: 'Aceito, aguardando início',
+            tone: 'bg-blue-100 text-blue-700 border-blue-200'
+        }
+    }
+
+    if (shift.status === 'accepted' && now >= start && now <= end && !shift.finished_by_doctor) {
+        return {
+            key: 'in_progress',
+            label: 'Em execução',
+            tone: 'bg-purple-100 text-purple-700 border-purple-200'
+        }
+    }
+
+    if (shift.status === 'accepted' && now > end && !shift.finished_by_doctor) {
+        return {
+            key: 'waiting_finish',
+            label: 'Aguardando finalização',
+            tone: 'bg-orange-100 text-orange-700 border-orange-200'
+        }
+    }
+
+    if (shift.finished_by_doctor && !shift.paid_by_clinic) {
+        return {
+            key: 'waiting_payment',
+            label: 'Aguardando pagamento',
+            tone: 'bg-indigo-100 text-indigo-700 border-indigo-200'
+        }
+    }
+
+    if (shift.paid_by_clinic && !shift.payment_confirmed_by_doctor) {
+        return {
+            key: 'waiting_confirmation',
+            label: 'Pago, aguardando confirmação',
+            tone: 'bg-cyan-100 text-cyan-700 border-cyan-200'
+        }
+    }
+
+    if (shift.payment_confirmed_by_doctor) {
+        return {
+            key: 'confirmed',
+            label: 'Concluído',
+            tone: 'bg-emerald-100 text-emerald-700 border-emerald-200'
+        }
+    }
+
+    return {
+        key: 'other',
+        label: 'Não classificado',
+        tone: 'bg-gray-100 text-gray-700 border-gray-200'
+    }
+}
+
+function Badge({ value }: { value: number }) {
     return (
-      d.getDate() === now.getDate() &&
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear()
+        <span className='ml-2 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-gray-700 ring-1 ring-gray-200'>
+            {value}
+        </span>
     )
-  }
+}
 
-  const matchesTime = (shift: any, type: 'today' | 'future' | 'past') => {
-    const d = new Date(shift.start_time)
-    const now = new Date()
+function PeriodButton({
+    option,
+    selected,
+    count,
+    onClick
+}: {
+    option: FilterOption<PeriodFilter>
+    selected: boolean
+    count: number
+    onClick: () => void
+}) {
+    return (
+        <button
+            type='button'
+            onClick={onClick}
+            title={option.description}
+            aria-pressed={selected}
+            className={`rounded-xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                selected
+                    ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+        >
+            <span className='flex items-center justify-between gap-2'>
+                <span className='text-sm font-semibold'>{option.label}</span>
+                <Badge value={count} />
+            </span>
+            <span className='mt-1 block text-xs text-gray-500'>{option.description}</span>
+        </button>
+    )
+}
 
-    if (type === 'today') return isToday(shift.start_time)
-    if (type === 'future') return d > now && !isToday(shift.start_time)
-    if (type === 'past') return d < now && !isToday(shift.start_time)
+function StatusChip({
+    option,
+    selected,
+    count,
+    onClick
+}: {
+    option: FilterOption<StatusFilter>
+    selected: boolean
+    count: number
+    onClick: () => void
+}) {
+    return (
+        <button
+            type='button'
+            onClick={onClick}
+            title={option.description}
+            aria-pressed={selected}
+            className={`rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                selected
+                    ? 'border-blue-500 bg-blue-50 text-blue-800'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+        >
+            {option.label}
+            <Badge value={count} />
+        </button>
+    )
+}
 
-    return true
-  }
+function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+    return (
+        <button
+            type='button'
+            onClick={onRemove}
+            className='rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-200'
+            title='Remover este filtro'
+        >
+            {label} ×
+        </button>
+    )
+}
 
-  const countTime = (type: 'today' | 'future' | 'past') =>
-    shifts.filter(s => matchesTime(s, type)).length
+export default function ClinicShiftsPage() {
+    const { user, profile, loading: authLoading } = useAuth()
 
-  const countStatus = (status: 'open' | 'accepted') =>
-    shifts.filter(s => s.status === status).length
+    const [allShifts, setAllShifts] = useState<ShiftRow[]>([])
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+    const [hasLoaded, setHasLoaded] = useState(false)
 
-  return (
-    <div ref={formRef} className='flex flex-col gap-X'>
-      {error && (
-        <div className='bg-red-100 text-red-700 p-2 rounded'>
-          {error}
-        </div>
-      )}
+    const [page, setPage] = useState(0)
+    const [searchInput, setSearchInput] = useState('')
+    const [search, setSearch] = useState('')
+    const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
-      {success && (
-        <div className='bg-green-100 text-green-700 p-2 rounded'>
-          {success}
-        </div>
-      )}
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setPage(0)
+            setSearch(searchInput.trim())
+        }, 400)
 
-      {loading && (
-        <div className='text-gray-500'>Carregando...</div>
-      )}
+        return () => clearTimeout(timer)
+    }, [searchInput])
 
-      <Card className='mt-6'>
-        <div className='flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 mb-3'>
-          <h2 className='text-lg font-semibold'>Seus plantões</h2>
+    useEffect(() => {
+        if (authLoading) return
+        if (!user) return
 
-          <div className='flex flex-col lg:flex-row gap-2'>
-            <div className='flex flex-wrap gap-2'>
-              <button
-                onClick={() => setTimeFilter('today')}
-                className={`px-3 py-1 rounded text-sm ${timeFilter === 'today'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                Hoje ({countTime('today')})
-              </button>
+        const loadShifts = async () => {
+            setLoading(true)
+            setError('')
 
-              <button
-                onClick={() => setTimeFilter('future')}
-                className={`px-3 py-1 rounded text-sm ${timeFilter === 'future'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                Próximos ({countTime('future')})
-              </button>
+            const clinicId = getProfileClinicId(profile)
+            const cleanSearch = search.replaceAll(',', ' ').trim()
 
-              <button
-                onClick={() => setTimeFilter('past')}
-                className={`px-3 py-1 rounded text-sm ${timeFilter === 'past'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                Passados ({countTime('past')})
-              </button>
-            </div>
+            let query: any = supabase
+                .from('shifts')
+                .select(
+                    `
+                        *,
+                        doctors:accepted_doctor_id (name)
+                    `
+                )
 
-            <div className='flex flex-wrap gap-2'>
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1 rounded text-sm ${statusFilter === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                Todos
-              </button>
+            // Se o seu useAuth() já entrega profile.clinic_id, o filtro abaixo garante que a clínica veja apenas seus plantões.
+            // Se o seu projeto usa outro nome de campo para o ID da clínica, ajuste a função getProfileClinicId no topo do arquivo.
+            if (clinicId) {
+                query = query.eq('clinic_id', clinicId)
+            }
 
-              <button
-                onClick={() => setStatusFilter('open')}
-                className={`px-3 py-1 rounded text-sm ${statusFilter === 'open'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                Abertos ({countStatus('open')})
-              </button>
+            if (cleanSearch) {
+                query = query.or(
+                    `specialty.ilike.%${cleanSearch}%,city.ilike.%${cleanSearch}%,state.ilike.%${cleanSearch}%`
+                )
+            }
 
-              <button
-                onClick={() => setStatusFilter('accepted')}
-                className={`px-3 py-1 rounded text-sm ${statusFilter === 'accepted'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                Aceitos ({countStatus('accepted')})
-              </button>
-            </div>
+            query = query.order('start_time', { ascending: true })
 
-            <Button
-              onClick={() => window.location.href = '/clinic/shifts/create'}
-            >
-              Novo plantão
-            </Button>
-          </div>
-        </div>
-        <div className='text-sm text-gray-500 mb-2'>
-          {timeFilter === 'today'
-            ? 'Hoje'
-            : timeFilter === 'future'
-              ? 'Próximos'
-              : 'Passados'}
-          {' • '}
-          {statusFilter === 'all'
-            ? 'Todos'
-            : statusFilter === 'open'
-              ? 'Abertos'
-              : 'Aceitos'}
-        </div>
-        {!loading &&
-          shifts.filter(shift => {
-            if (statusFilter === 'all') return true
-            return shift.status === statusFilter
-          }).length === 0 && (
-            <div className='text-gray-500'>
-              {shifts.length === 0
-                ? 'Nenhum plantão criado'
-                : 'Nenhum plantão encontrado'}
-            </div>
-          )}
-        {loading && (
-          <div className='text-gray-500'>Carregando...</div>
-        )}
-        <div className='max-h-[500px] overflow-y-auto pr-1'>
-          {shifts
-            .filter(shift => {
-              if (statusFilter !== 'all' && shift.status !== statusFilter) return false
+            const { data, error } = await query
 
-              const d = new Date(shift.start_time)
-              const now = new Date()
+            if (error) {
+                setAllShifts([])
+                setError(error.message)
+                setLoading(false)
+                setHasLoaded(true)
+                return
+            }
 
-              const isToday =
-                d.getDate() === now.getDate() &&
-                d.getMonth() === now.getMonth() &&
-                d.getFullYear() === now.getFullYear()
+            setAllShifts((data || []) as ShiftRow[])
+            setLoading(false)
+            setHasLoaded(true)
+        }
 
-              if (timeFilter === 'today') return isToday
-              if (timeFilter === 'future') return d > now && !isToday
-              if (timeFilter === 'past') return d < now && !isToday
+        loadShifts()
+    }, [authLoading, user, profile, search])
 
-              return true
+    const counts = useMemo<Counts>(() => {
+        return {
+            period: {
+                all: allShifts.length,
+                today: allShifts.filter(shift => matchesPeriod(shift, 'today')).length,
+                upcoming: allShifts.filter(shift => matchesPeriod(shift, 'upcoming')).length,
+                past: allShifts.filter(shift => matchesPeriod(shift, 'past')).length
+            },
+            status: {
+                all: allShifts.length,
+                open: allShifts.filter(shift => matchesStatus(shift, 'open')).length,
+                accepted: allShifts.filter(shift => matchesStatus(shift, 'accepted')).length
+            }
+        }
+    }, [allShifts])
+
+    const filteredShifts = useMemo(() => {
+        return allShifts.filter(shift => {
+            return matchesPeriod(shift, periodFilter) && matchesStatus(shift, statusFilter)
+        })
+    }, [allShifts, periodFilter, statusFilter])
+
+    const total = filteredShifts.length
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+    const shifts = useMemo(() => {
+        const start = page * PAGE_SIZE
+        const end = start + PAGE_SIZE
+        return filteredShifts.slice(start, end)
+    }, [filteredShifts, page])
+
+    useEffect(() => {
+        if (page > totalPages - 1) {
+            setPage(Math.max(totalPages - 1, 0))
+        }
+    }, [page, totalPages])
+
+    const activeFilters = useMemo(() => {
+        const filters: Array<{ key: string; label: string; onRemove: () => void }> = []
+
+        if (search) {
+            filters.push({
+                key: 'search',
+                label: `Busca: ${search}`,
+                onRemove: () => {
+                    setSearchInput('')
+                    setSearch('')
+                    setPage(0)
+                }
             })
-            .sort((a, b) => {
-              // prioridade: open primeiro
-              if (a.status !== b.status) {
-                return a.status === 'open' ? -1 : 1
-              }
+        }
 
-              // ordena por mais próximo primeiro
-              return new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+        if (periodFilter !== 'all') {
+            filters.push({
+                key: 'period',
+                label: `Período: ${getOptionLabel(PERIOD_OPTIONS, periodFilter)}`,
+                onRemove: () => {
+                    setPeriodFilter('all')
+                    setPage(0)
+                }
             })
-            .map(shift => (
-              <div
-                key={shift.id}
-                className='border border-gray-200 p-4 rounded-lg bg-white flex flex-col gap-2'
-              >
-                <div className='flex justify-between items-center'>
-                  <div className='flex flex-col'>
-                    <div className='font-semibold text-gray-900'>
-                      {shift.specialty}
+        }
+
+        if (statusFilter !== 'all') {
+            filters.push({
+                key: 'status',
+                label: `Status: ${getOptionLabel(STATUS_OPTIONS, statusFilter)}`,
+                onRemove: () => {
+                    setStatusFilter('all')
+                    setPage(0)
+                }
+            })
+        }
+
+        return filters
+    }, [search, periodFilter, statusFilter])
+
+    const resetFilters = () => {
+        setSearchInput('')
+        setSearch('')
+        setPeriodFilter('all')
+        setStatusFilter('all')
+        setPage(0)
+    }
+
+    const changePeriodFilter = (value: PeriodFilter) => {
+        setPeriodFilter(value)
+        setPage(0)
+    }
+
+    const changeStatusFilter = (value: StatusFilter) => {
+        setStatusFilter(value)
+        setPage(0)
+    }
+
+    if (authLoading) {
+        return <div className='text-gray-500'>Carregando...</div>
+    }
+
+    return (
+        <div className='flex flex-col gap-4'>
+            <Card className='p-5'>
+                <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                    <div>
+                        <h1 className='text-2xl font-bold text-gray-950'>Seus plantões</h1>
+                        <p className='mt-1 text-sm text-gray-500'>
+                            Visualize seus plantões por período e status.
+                        </p>
+                        <p className='mt-1 text-xs text-gray-500'>
+                            {loading
+                                ? 'Atualizando resultados...'
+                                : `${total} resultado(s) encontrado(s) • Página ${page + 1} de ${totalPages}`}
+                        </p>
                     </div>
 
-                    {shift.requires_rqe && (
-                      <span className='text-xs text-red-600'>
-                        Requer RQE
-                      </span>
-                    )}
-                  </div>
-
-                  <span className={`text-xs font-medium px-2 py-1 rounded 
-          ${shift.status === 'open'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-green-100 text-green-700'}
-        `}>
-                    {shift.status === 'open' ? 'Aberto' : 'Aceito'}
-                  </span>
+                    <Button
+                        onClick={() => {
+                            window.location.href = '/clinic/shifts/new'
+                        }}
+                    >
+                        Novo plantão
+                    </Button>
                 </div>
 
-                <div className='text-sm text-gray-600'>
-                  <div><b>Valor:</b> R$ {shift.value}</div>
-                  {getTimeLabel(shift.start_time) && (
-                    <div className='text-xs text-blue-600 font-medium'>
-                      {getTimeLabel(shift.start_time)}
+                <div className='mt-5 flex flex-col gap-5'>
+                    <div>
+                        <label className='mb-1 block text-sm font-medium text-gray-700'>
+                            Buscar plantão
+                        </label>
+                        <Input
+                            value={searchInput}
+                            onChange={setSearchInput}
+                            placeholder='Busque por especialidade, cidade ou estado...'
+                        />
                     </div>
-                  )}
-                  <div><b>Início:</b> {new Date(shift.start_time).toLocaleString()}</div>
-                  <div><b>Fim:</b> {new Date(shift.end_time).toLocaleString()}</div>
-                  <div>
-                    <b>Local:</b> {shift.address}, {shift.number}
-                    {shift.complement ? ` - ${shift.complement}` : ''} - {shift.city}
-                  </div>
+
+                    <div>
+                        <div className='mb-2'>
+                            <h2 className='text-sm font-semibold text-gray-800'>Período</h2>
+                            <p className='text-xs text-gray-500'>
+                                Primeiro escolha quando o plantão acontece.
+                            </p>
+                        </div>
+
+                        <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4'>
+                            {PERIOD_OPTIONS.map(option => (
+                                <PeriodButton
+                                    key={option.value}
+                                    option={option}
+                                    selected={periodFilter === option.value}
+                                    count={counts.period[option.value]}
+                                    onClick={() => changePeriodFilter(option.value)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className='mb-2'>
+                            <h2 className='text-sm font-semibold text-gray-800'>Status</h2>
+                            <p className='text-xs text-gray-500'>
+                                Depois refine pela situação principal do plantão.
+                            </p>
+                        </div>
+
+                        <div className='flex flex-wrap gap-2'>
+                            {STATUS_OPTIONS.map(option => (
+                                <StatusChip
+                                    key={option.value}
+                                    option={option}
+                                    selected={statusFilter === option.value}
+                                    count={counts.status[option.value]}
+                                    onClick={() => changeStatusFilter(option.value)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className='flex flex-wrap items-center gap-2'>
+                        {activeFilters.length > 0 ? (
+                            <>
+                                <span className='text-xs font-medium text-gray-500'>Filtros ativos:</span>
+
+                                {activeFilters.map(filter => (
+                                    <ActiveFilterChip
+                                        key={filter.key}
+                                        label={filter.label}
+                                        onRemove={filter.onRemove}
+                                    />
+                                ))}
+
+                                <button
+                                    type='button'
+                                    onClick={resetFilters}
+                                    className='text-xs font-medium text-blue-600 hover:underline'
+                                >
+                                    Limpar todos
+                                </button>
+                            </>
+                        ) : (
+                            <span className='rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700'>
+                                Sem filtros ativos
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </Card>
+
+            {error && <div className='text-sm text-red-500'>{error}</div>}
+
+            {loading && <div className='text-sm text-gray-500'>Carregando plantões...</div>}
+
+            {!loading && hasLoaded && shifts.length === 0 && (
+                <Card className='p-6'>
+                    <div className='text-sm font-medium text-gray-700'>Nenhum plantão encontrado</div>
+                    <div className='mt-1 text-sm text-gray-500'>
+                        Tente remover algum filtro ou buscar por outro termo.
+                    </div>
+                </Card>
+            )}
+
+            {!loading && shifts.map(shift => {
+                const stage = getStage(shift)
+
+                return (
+                    <Card
+                        key={shift.id}
+                        className='cursor-pointer border p-4 transition hover:shadow-md'
+                        onClick={() => {
+                            window.location.href = `/clinic/shifts/${shift.id}`
+                        }}
+                    >
+                        <div className='flex flex-col gap-4'>
+                            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                                <div className='flex flex-col gap-2'>
+                                    <div className='text-lg font-semibold text-gray-900'>
+                                        {shift.specialty || 'Plantão sem especialidade'}
+                                    </div>
+
+                                    <div className='flex flex-wrap gap-2'>
+                                        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${stage.tone}`}>
+                                            {stage.label}
+                                        </span>
+
+                                        {shift.status && (
+                                            <span className='rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs text-gray-700'>
+                                                Status técnico: {shift.status}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className='text-left sm:text-right'>
+                                    <div className='text-2xl font-bold text-green-700'>
+                                        {formatCurrency(shift.value)}
+                                    </div>
+                                    <div className='text-sm font-medium text-blue-600'>
+                                        {getTimeLabel(shift.start_time)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className='grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-4'>
+                                <div className='rounded-lg border border-gray-100 bg-gray-50 p-3'>
+                                    <div className='mb-1 text-xs text-gray-400'>Médico</div>
+                                    <div className='font-medium text-gray-800'>
+                                        {shift.doctors?.name || 'Ainda não aceito'}
+                                    </div>
+                                </div>
+
+                                <div className='rounded-lg border border-gray-100 bg-gray-50 p-3'>
+                                    <div className='mb-1 text-xs text-gray-400'>Local</div>
+                                    <div className='font-medium text-gray-800'>
+                                        {shift.city || '-'} / {shift.state || '-'}
+                                    </div>
+                                </div>
+
+                                <div className='rounded-lg border border-gray-100 bg-gray-50 p-3'>
+                                    <div className='mb-1 text-xs text-gray-400'>Data e horário</div>
+                                    <div className='font-medium text-gray-800'>
+                                        {formatDateTime(shift.start_time)}
+                                    </div>
+                                </div>
+
+                                <div className='rounded-lg border border-gray-100 bg-gray-50 p-3'>
+                                    <div className='mb-1 text-xs text-gray-400'>ID do plantão</div>
+                                    <div className='truncate font-medium text-gray-800'>
+                                        {shift.id}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                )
+            })}
+
+            <div className='mt-2 flex items-center justify-between gap-3'>
+                <Button
+                    variant='secondary'
+                    disabled={page === 0 || loading}
+                    onClick={() => setPage(currentPage => Math.max(currentPage - 1, 0))}
+                >
+                    Anterior
+                </Button>
+
+                <div className='text-sm text-gray-500'>
+                    Página {page + 1} de {totalPages}
                 </div>
 
-                {shift.status === 'accepted' && shift.doctors && (
-                  <div className='text-sm bg-gray-50 p-2 rounded'>
-                    <b>Médico:</b> {shift.doctors.name} ({shift.doctors.crm})
-                  </div>
-                )}
-
-                {shift.status === 'open' && (
-                  <div className='flex gap-2 mt-2'>
-                    <Button
-                      variant='secondary'
-                      onClick={() => window.location.href = `/clinic/shifts/${shift.id}/edit`}
-                    >
-                      Editar
-                    </Button>
-
-                    <Button
-                      variant='danger'
-                      onClick={() => {
-                        if (confirmDeleteId === shift.id) {
-                          deleteShift(shift.id)
-                          setConfirmDeleteId(null)
-                        } else {
-                          setConfirmDeleteId(shift.id)
-                          setTimeout(() => setConfirmDeleteId(null), 3000)
-                        }
-                      }}
-                    >
-                      {confirmDeleteId === shift.id ? 'Confirmar?' : 'Excluir'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
+                <Button
+                    variant='secondary'
+                    disabled={page + 1 >= totalPages || loading}
+                    onClick={() => setPage(currentPage => currentPage + 1)}
+                >
+                    Próxima
+                </Button>
+            </div>
         </div>
-      </Card>
-    </div >
-  )
+    )
 }
