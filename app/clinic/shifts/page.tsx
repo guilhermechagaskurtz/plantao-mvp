@@ -522,7 +522,7 @@ export default function ClinicShiftsPage() {
 
                     <Button
                         onClick={() => {
-                            window.location.href = '/clinic/shifts/new'
+                            window.location.href = '/clinic/shifts/create'
                         }}
                     >
                         Novo plantão
