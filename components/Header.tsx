@@ -259,6 +259,16 @@ export default function Header() {
               </a>
 
               <a
+                href='/clinic/templates'
+                className={`text-sm transition ${pathname === '/clinic/groups'
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
+              >
+                Grupos
+              </a>
+
+              <a
                 href='/clinic/financial'
                 className={`text-sm transition ${pathname === '/clinic/financial'
                   ? 'text-blue-600 font-medium'
@@ -427,6 +437,12 @@ export default function Header() {
                 onClick={() => setOpen(false)}
               >
                 Modelos
+              </a>
+              <a
+                href='/clinic/groups'
+                onClick={() => setOpen(false)}
+              >
+                Grupos
               </a>
               <a
                 href='/clinic/financial'
